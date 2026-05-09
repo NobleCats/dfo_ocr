@@ -38,15 +38,7 @@ extensions = []
 for name in MODULES:
     src = PROTECTED_SRC / f"{name}.py"
     if src.exists():
-        extensions.append(
-            Extension(
-                name,
-                [str(src)],
-                define_macros=[
-                    ("CYTHON_TRACE", "0"),
-                ],
-            )
-        )
+        extensions.append(Extension(name, [str(src)]))
 
 setup(
     name="dfogang_raid_helper_protected",
@@ -55,7 +47,10 @@ setup(
         compiler_directives={
             "language_level": "3",
             "boundscheck": False,
-            "wraparound": False,
+            # Keep wraparound enabled for safety; several modules intentionally
+            # use negative Python indexes. The speed difference is irrelevant for
+            # this release-protection build.
+            "wraparound": True,
             "initializedcheck": False,
             "embedsignature": False,
         },
