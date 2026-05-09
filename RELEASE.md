@@ -45,12 +45,25 @@ DFOGANG_RaidHelper/
 | --- | --- |
 | Windows 10/11 x64 | 빌드 환경 = 타겟 환경 |
 | Python 3.10 (권장) | 개발 시 사용 중인 버전 |
-| Visual Studio Build Tools 2019/2022 | "Desktop development with C++" 워크로드 + Windows 10/11 SDK 필수 |
+| Visual Studio 2019/2022 또는 Build Tools | 아래 컴포넌트 정확히 필요 |
 | `pyinstaller`, `cython`, `setuptools`, `wheel` | 빌드 스크립트가 자동 설치/업그레이드 |
 
-Visual Studio 워크로드가 미설치되면 Cython 단계가 `pyconfig.h fatal error
-C1083: 'io.h': No such file or directory`로 실패합니다. 빌드 스크립트가
-선제적으로 SDK 헤더를 점검해 명확한 에러를 띄웁니다.
+#### Visual Studio 필수 컴포넌트 설치 방법
+
+Cython이 `.py` → `.pyd` 를 컴파일하려면 MSVC 컴파일러와 Windows SDK 헤더가 모두
+필요합니다. **Visual Studio Installer** 를 열고 아래 두 가지가 체크되어 있는지 확인하세요.
+
+1. **Visual Studio Installer** 를 실행합니다.
+2. 설치된 버전 옆의 **수정(Modify)** 을 클릭합니다.
+3. **워크로드** 탭에서 **"C++를 사용한 데스크톱 개발"** 을 체크합니다.
+4. 오른쪽 세부 항목에서 다음 두 가지가 선택되어 있는지 확인합니다:
+   - `MSVC v142 또는 v143 - VS 2019/2022 C++ x64/x86 빌드 도구`
+   - `Windows 10 SDK (10.0.x)` **또는** `Windows 11 SDK`
+5. **수정** 을 클릭하고 설치가 완료될 때까지 기다립니다.
+
+> SDK 헤더(`io.h`)가 없으면 Cython 컴파일이 `pyconfig.h fatal error C1083`으로
+> 실패합니다. 빌드 스크립트가 SDK 헤더를 파일 시스템으로 사전 확인하고
+> 위 설치 지침이 담긴 명확한 오류를 출력합니다.
 
 ### 빌드 명령
 

@@ -133,23 +133,27 @@ Required components:
 }
 Write-Host "  Using: $VcVars"
 
-# Smoke-check that the SDK headers are usable. The classic Cython failure on a
-# stripped VS install is `pyconfig.h fatal error C1083: 'io.h' not found.`
-$smokeC = Join-Path $env:TEMP "dfogang_io_check_$PID.c"
-$smokeObj = Join-Path $env:TEMP "dfogang_io_check_$PID.obj"
-'#include <io.h>' | Set-Content -LiteralPath $smokeC -Encoding ascii
-try {
-    Invoke-CmdWithVcVars -VcVars $VcVars `
-        -Command "cl /nologo /c `"$smokeC`" /Fo`"$smokeObj`" >NUL"
-} catch {
-    Remove-Item -LiteralPath $smokeC, $smokeObj -ErrorAction SilentlyContinue
+# Verify the Windows SDK UCRT headers are present. A VS install that has the
+# MSVC tools but no Windows SDK will fail on `#include <io.h>` inside
+# pyconfig.h, producing a confusing cl.exe exit-code-2 failure later.
+$sdkIncludeDirs = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\include" `
+    -Directory -ErrorAction SilentlyContinue |
+    Where-Object { Test-Path (Join-Path $_.FullName "ucrt\io.h") }
+if (-not $sdkIncludeDirs) {
     Fail @"
-Windows SDK UCRT header io.h is not available.
-Open the Visual Studio Installer, modify your install, ensure
-"Desktop development with C++" plus a Windows 10 or 11 SDK is selected.
+Windows SDK UCRT headers not found.
+The Windows 10/11 SDK headers are required to compile Cython extensions.
+
+Fix:
+  1. Open the Visual Studio Installer.
+  2. Click 'Modify' on your Visual Studio / Build Tools installation.
+  3. Under 'Desktop development with C++', make sure at least one
+     'Windows 10 SDK' or 'Windows 11 SDK' item is checked.
+  4. Click Modify and wait for the install to complete.
+  5. Re-run this script.
 "@
 }
-Remove-Item -LiteralPath $smokeC, $smokeObj -ErrorAction SilentlyContinue
+Write-Host "  Windows SDK UCRT headers: OK"
 
 
 Write-Step '1/8' 'Cleaning previous build outputs...'
@@ -190,7 +194,7 @@ if ($LASTEXITCODE -ne 0) {
 
 
 Write-Step '5/8' 'Mirroring src/*.py to protected workspace...'
-Copy-Item -LiteralPath (Join-Path $RepoRoot 'src\*.py') -Destination $ProtectedSrc
+Copy-Item -Path (Join-Path $RepoRoot 'src\*.py') -Destination $ProtectedSrc
 $pyCount = (Get-ChildItem -LiteralPath $ProtectedSrc -Filter *.py | Measure-Object).Count
 if ($pyCount -lt 1) {
     Fail 'No .py files were copied to build_secure/protected_src.'
