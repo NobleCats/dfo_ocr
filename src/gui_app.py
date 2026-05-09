@@ -159,7 +159,7 @@ class ControlWindow(QWidget):
         self.api_help_btn.setToolTip(
             "Needed to try fame-based search when name recognition fails."
         )
-        self.api_help_btn.clicked.connect(self._open_api_key_page)
+        self.api_help_btn.clicked.connect(lambda _: self._open_api_key_page())
 
         api_row.addWidget(self.api_key_input, 1)
         api_row.addWidget(self.api_help_btn)
@@ -174,7 +174,7 @@ class ControlWindow(QWidget):
         self.toggle_btn = QPushButton()
         self.toggle_btn.setFixedSize(ACTION_BUTTON_SIZE, ACTION_BUTTON_SIZE)
         self.toggle_btn.setIconSize(QSize(ACTION_ICON_SIZE, ACTION_ICON_SIZE))
-        self.toggle_btn.clicked.connect(self.toggle_overlay)
+        self.toggle_btn.clicked.connect(lambda _: self.toggle_overlay())
         self._set_toggle_icon(running=False)
 
         status_row = QHBoxLayout()
