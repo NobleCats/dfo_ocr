@@ -118,6 +118,15 @@ ROW_MIN_TEXT_PIXELS = 12
 # PaddleOCR when the detector has row positions that extend beyond the request list.
 ROW_GATE_MIN_BRIGHT_PIXELS = 20
 ROW_GATE_MIN_TRANSITIONS = 400
+# Additional cheap column gates. A real applicant row should have visible fame
+# digits and name/class text in their expected columns. These reject background
+# UI/chat text that happens to have many transitions in the combined row band.
+ROW_GATE_MIN_FAME_BRIGHT_PIXELS = 10
+ROW_GATE_MIN_NAME_BRIGHT_PIXELS = 18
+ROW_GATE_MIN_NAME_TRANSITIONS = 45
+# Applicant rows fill from the top of the request table. If the top rows are
+# empty, do not keep scanning down into unrelated game UI/background.
+ROW_GATE_MAX_INITIAL_EMPTY_ROWS = 4
 MAX_OCR_PER_FRAME = 3
 
 _DEFAULT_MARKER_PATH = resource_path("markers", "party_apply", "column_header_69pct.png")
@@ -564,29 +573,65 @@ def recognize_party_apply(
             bright = gray_max > bg + 60
             bright_count = int(bright.sum())
 
-            if bright_count < ROW_GATE_MIN_BRIGHT_PIXELS:
+            def _mark_empty() -> bool:
+                nonlocal empties_since_real
                 empties_since_real += 1
                 if out and empties_since_real >= 3:
+                    return True
+                if not out and empties_since_real >= ROW_GATE_MAX_INITIAL_EMPTY_ROWS:
+                    return True
+                return False
+
+            if bright_count < ROW_GATE_MIN_BRIGHT_PIXELS:
+                if _mark_empty():
                     break
                 continue
 
             transitions = int((bright[:, 1:] != bright[:, :-1]).sum())
             if transitions < ROW_GATE_MIN_TRANSITIONS:
-                empties_since_real += 1
-                if out and empties_since_real >= 3:
+                if _mark_empty():
+                    break
+                continue
+
+            # Column-level sanity check. This is intentionally cheap and avoids
+            # PaddleOCR calls on scene/chat/UI text that overlaps lower computed
+            # row slots after the request window has been dragged.
+            fame_rx0 = max(0, _col(REF_FAME_X[0]) + int(round((FAME_STAR_ICON_RIGHT_PAD - FAME_DIGIT_LEFT_BREATHING) * s)))
+            fame_rx1 = min(W, _col(REF_FAME_X[1]) + int(round(FAME_DIGIT_RIGHT_BREATHING * s)))
+            name_rx0 = max(0, _col(REF_NAME_X[0]))
+            name_rx1 = min(W, _col(REF_NAME_X[1]))
+
+            def _col_stats(x0: int, x1: int) -> tuple[int, int]:
+                if x1 - x0 < 4:
+                    return 0, 0
+                sub = image_rgb[row_top:check_y1, x0:x1].max(axis=2)
+                sub_bg = float(np.percentile(sub, 25))
+                sub_bright = sub > sub_bg + 60
+                sub_count = int(sub_bright.sum())
+                sub_trans = int((sub_bright[:, 1:] != sub_bright[:, :-1]).sum()) if sub_bright.shape[1] > 1 else 0
+                return sub_count, sub_trans
+
+            fame_bright, fame_trans = _col_stats(fame_rx0, fame_rx1)
+            name_bright, name_trans = _col_stats(name_rx0, name_rx1)
+            if fame_bright < ROW_GATE_MIN_FAME_BRIGHT_PIXELS or name_bright < ROW_GATE_MIN_NAME_BRIGHT_PIXELS or name_trans < ROW_GATE_MIN_NAME_TRANSITIONS:
+                _logger.debug(
+                    "row %d gate REJECT columns bright=%d trans=%d fame_bright=%d fame_trans=%d name_bright=%d name_trans=%d",
+                    i, bright_count, transitions, fame_bright, fame_trans, name_bright, name_trans,
+                )
+                if _mark_empty():
                     break
                 continue
 
             _logger.debug(
-                "row %d gate PASS bright=%d transitions=%d",
-                i,
-                bright_count,
-                transitions,
+                "row %d gate PASS bright=%d transitions=%d fame_bright=%d fame_trans=%d name_bright=%d name_trans=%d",
+                i, bright_count, transitions, fame_bright, fame_trans, name_bright, name_trans,
             )
 
         if ocr_rows_used >= MAX_OCR_PER_FRAME:
             empties_since_real += 1
             if out and empties_since_real >= 3:
+                break
+            if not out and empties_since_real >= ROW_GATE_MAX_INITIAL_EMPTY_ROWS:
                 break
             continue
         ocr_rows_used += 1
@@ -652,6 +697,8 @@ def recognize_party_apply(
         if row.is_empty:
             empties_since_real += 1
             if out and empties_since_real >= 3:
+                break
+            if not out and empties_since_real >= ROW_GATE_MAX_INITIAL_EMPTY_ROWS:
                 break
             continue
 
