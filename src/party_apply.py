@@ -118,7 +118,7 @@ TEMPLATE_SCALE_FOR_PARTY_APPLY_DIGITS = 0.5
 # icon ends and the actual digit text begins. The icon is anti-aliased into
 # the digit area; cropping too tight bleeds the icon's right wing into the
 # first OCR'd digit (we saw a phantom leading '8' in samples).
-FAME_STAR_ICON_RIGHT_PAD = 45
+FAME_STAR_ICON_RIGHT_PAD = 34
 
 # Same for the B/D awakening-tier badge sitting before "Neo:" on the class
 # line.
@@ -133,6 +133,8 @@ _DEFAULT_MARKER_PATH = (
     resource_path("markers", "party_apply", "column_header_69pct.png")
 )
 _OPTIONAL_MARKER_PATHS = (
+    resource_path("markers", "party_apply", "column_header_0pct.png"),
+    resource_path("markers", "party_apply", "column_header_50pct.png"),
     resource_path("markers", "party_apply", "column_header_80pct.png"),
     resource_path("markers", "party_apply", "column_header_100pct.png"),
 )
@@ -196,6 +198,20 @@ def _load_marker(path: Path | None = None) -> np.ndarray:
     return np.array(Image.open(p).convert("RGB"))
 
 
+def _marker_base_scale(marker_gray: np.ndarray) -> float:
+    """Return marker capture scale relative to the 69% reference geometry.
+
+    Optional marker images are captured at their native UI scale, so the
+    resize factor used by matchTemplate is not the same as the party-window
+    geometry scale. Converting through marker width keeps row/column crops
+    aligned for 0%, 50%, 100% UI-scale markers.
+    """
+    try:
+        return max(0.35, float(marker_gray.shape[1]) / float(REF_MARKER_SIZE[0]))
+    except Exception:
+        return 1.0
+
+
 def _load_markers() -> list[np.ndarray]:
     """Load every available party-apply header marker.
 
@@ -210,7 +226,7 @@ def _load_markers() -> list[np.ndarray]:
 
 def detect_party_apply(image_rgb: np.ndarray,
                        *,
-                       min_scale: float = 0.6,
+                       min_scale: float = 0.45,
                        max_scale: float = 2.0,
                        scale_step: float = 0.02,
                        coarse_step: float = 0.1,
@@ -226,8 +242,14 @@ def detect_party_apply(image_rgb: np.ndarray,
                        near_scale_radius: float = 0.1,
                        max_rows: int = 12,
                        ) -> PartyApplyDetection:
-    """Locate the party-apply window in `image_rgb` by template-matching the
-    column header strip across scales.
+    """Locate the party-apply window in `image_rgb`.
+
+    Row contents are OCR/template-read later; detection only needs to find the
+    request-list column header so the downstream crop coordinates can be
+    anchored. We therefore match a small set of header anchors captured at
+    common DFO UI-scale settings (0%, 50%, 69%, 100%) instead of relying on a
+    single 69% reference. This keeps the detector resolution-independent while
+    avoiding broad full-window templates.
 
     Returns marker bbox plus precomputed row tops. The caller can then read
     each row at the per-column offsets defined above.
@@ -255,11 +277,12 @@ def detect_party_apply(image_rgb: np.ndarray,
 
     full_scales = np.arange(min_scale, max_scale + 1e-6, scale_step)
     if near_scale is not None:
-        lo = near_scale - near_scale_radius
-        hi = near_scale + near_scale_radius
-        scales = full_scales[(full_scales >= lo) & (full_scales <= hi)]
         best = PartyApplyDetection(False, 0.0, 1.0, (0, 0, 0, 0), [])
         for marker_gray in marker_grays:
+            base = _marker_base_scale(marker_gray)
+            lo = max(0.2, (near_scale - near_scale_radius) / base)
+            hi = max(lo + scale_step, (near_scale + near_scale_radius) / base)
+            scales = np.arange(lo, hi + 1e-6, scale_step)
             cand = _scan_scales(scales, img_gray, marker_gray,
                                 score_threshold, max_rows, H, W)
             if cand.score > best.score:
@@ -294,6 +317,7 @@ def detect_party_apply(image_rgb: np.ndarray,
 def _scan_scales(scales, img_gray, marker_gray, score_threshold,
                  max_rows, H, W) -> PartyApplyDetection:
     best = PartyApplyDetection(False, 0.0, 1.0, (0, 0, 0, 0), [])
+    base_scale = _marker_base_scale(marker_gray)
     for scale in scales:
         new_w = int(round(marker_gray.shape[1] * scale))
         new_h = int(round(marker_gray.shape[0] * scale))
@@ -306,13 +330,16 @@ def _scan_scales(scales, img_gray, marker_gray, score_threshold,
         result = cv2.matchTemplate(img_gray, resized, cv2.TM_CCOEFF_NORMED)
         _, max_val, _, max_loc = cv2.minMaxLoc(result)
         if max_val > best.score:
-            best = _build_detection(float(scale), max_val, max_loc, score_threshold,
+            effective_scale = float(scale) * base_scale
+            best = _build_detection(effective_scale, max_val, max_loc, score_threshold,
                                     new_w, new_h, max_rows, H)
     return best
 
 
 def _hint_lookup(img_gray, marker_gray, hint, radius, threshold, max_rows, H):
-    scale = hint.scale
+    effective_scale = hint.scale
+    base_scale = _marker_base_scale(marker_gray)
+    scale = effective_scale / base_scale
     new_w = int(round(marker_gray.shape[1] * scale))
     new_h = int(round(marker_gray.shape[0] * scale))
     if new_w < 16 or new_h < 4:
@@ -332,7 +359,7 @@ def _hint_lookup(img_gray, marker_gray, hint, radius, threshold, max_rows, H):
     if max_val < threshold:
         return None
     return _build_detection(
-        scale, max_val, (max_loc[0] + x0, max_loc[1] + y0), threshold,
+        effective_scale, max_val, (max_loc[0] + x0, max_loc[1] + y0), threshold,
         new_w, new_h, max_rows, H)
 
 
