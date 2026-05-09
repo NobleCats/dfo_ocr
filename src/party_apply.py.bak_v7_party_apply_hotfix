@@ -136,11 +136,6 @@ FAME_DIGIT_RIGHT_BREATHING = 42
 ROW_MIN_TEXT_PIXELS = 12
 
 
-# Fast row-gate thresholds. These prevent live-scene / tooltip / chat UI rows
-# from entering PaddleOCR. Real party-apply rows measured in live captures
-# are usually ~800-1000 transitions; false-positive UI rows were ~128-280.
-ROW_GATE_MIN_BRIGHT_PIXELS = 20
-ROW_GATE_MIN_TRANSITIONS = 400
 _DEFAULT_MARKER_PATH = (
     resource_path("markers", "party_apply", "column_header_69pct.png")
 )
@@ -529,7 +524,7 @@ def recognize_party_apply(image_rgb: np.ndarray,
     # OCR pipeline per frame. Prevents the 1.5-2s blowup when the gate
     # leaks game-scene rows through (each PaddleOCR call is ~150ms; 5
     # leaks already double the frame budget).
-    MAX_OCR_PER_FRAME = 3
+    MAX_OCR_PER_FRAME = 8
     ocr_rows_used = 0
     for i, row_top in enumerate(det.rows_top_y):
         row_bot = row_top + pitch - 1
@@ -555,13 +550,13 @@ def recognize_party_apply(image_rgb: np.ndarray,
             bg = float(np.percentile(gray_max, 25))
             bright = gray_max > bg + 60
             bright_count = int(bright.sum())
-            if bright_count < ROW_GATE_MIN_BRIGHT_PIXELS:
+            if bright_count < 20:
                 empties_since_real += 1
                 if out and empties_since_real >= 3:
                     break
                 continue
             transitions = int((bright[:, 1:] != bright[:, :-1]).sum())
-            if transitions < ROW_GATE_MIN_TRANSITIONS:
+            if transitions < 30:
                 empties_since_real += 1
                 if out and empties_since_real >= 3:
                     break

@@ -1,42 +1,39 @@
-09:56:34.345 INFO LiveDemo init  ui_scale=1.000  interval=250ms  monitor=None  window_title='Dungeon Fighter Online'  log_dir=C:\Users\Noble\AppData\Local\DFOGANG_RaidHelper
-09:56:37.305 INFO PaddleOCR reader initialized (PP-OCRv5)
-09:56:39.188 DEBUG party_apply frame  cap=31  det=4548  recog=0  total=4583ms  found=False  score=0.42  scale=0.30  rows=0
-09:56:43.705 DEBUG party_apply frame  cap=30  det=4306  recog=0  total=4337ms  found=False  score=0.41  scale=0.30  rows=0
-09:56:48.339 DEBUG party_apply frame  cap=24  det=4435  recog=0  total=4459ms  found=False  score=0.42  scale=0.30  rows=0
-09:56:52.712 DEBUG party_apply frame  cap=32  det=4307  recog=0  total=4340ms  found=False  score=0.41  scale=0.30  rows=0
-09:56:57.305 DEBUG party_apply frame  cap=25  det=4409  recog=0  total=4434ms  found=False  score=0.42  scale=0.30  rows=0
-09:56:59.543 INFO loading templates for detected scale 0.462 (key 0.46)
-09:56:59.614 INFO loading templates for detected scale 0.330 (key 0.33)
-09:56:59.680 DEBUG row 10 gate PASS  bright=2425  transitions=276
-09:57:00.154 DEBUG row 11 gate PASS  bright=3107  transitions=134
-09:57:00.815 DEBUG party_apply frame  cap=27  det=2149  recog=1137  total=3448ms  found=True  score=1.00  scale=0.66  rows=0
-09:57:00.817 INFO party_apply STATE lost -> found after 26.47s
-09:57:00.925 DEBUG row 10 gate PASS  bright=2867  transitions=262
-09:57:01.255 DEBUG row 11 gate PASS  bright=3491  transitions=148
-09:57:01.694 DEBUG party_apply frame  cap=22  det=28  recog=770  total=820ms  found=True  score=1.00  scale=0.66  rows=0
-09:57:01.942 DEBUG row 10 gate PASS  bright=2955  transitions=250
-09:57:02.283 DEBUG row 11 gate PASS  bright=3491  transitions=148
-09:57:02.592 DEBUG party_apply frame  cap=29  det=29  recog=652  total=710ms  found=True  score=1.00  scale=0.66  rows=0
-09:57:02.680 DEBUG row 10 gate PASS  bright=2321  transitions=266
-09:57:03.011 DEBUG row 11 gate PASS  bright=3271  transitions=156
-09:57:04.024 DEBUG party_apply frame  cap=35  det=32  recog=1347  total=1414ms  found=True  score=1.00  scale=0.66  rows=0
-09:57:04.165 DEBUG row 10 gate PASS  bright=2593  transitions=238
-09:57:04.747 DEBUG row 11 gate PASS  bright=3005  transitions=138
-09:57:05.782 DEBUG party_apply frame  cap=33  det=31  recog=1618  total=1683ms  found=True  score=1.00  scale=0.66  rows=0
-09:57:05.948 DEBUG row 10 gate PASS  bright=2803  transitions=274
-09:57:06.381 DEBUG row 11 gate PASS  bright=3503  transitions=132
-09:57:07.305 DEBUG party_apply frame  cap=29  det=33  recog=1358  total=1421ms  found=True  score=1.00  scale=0.66  rows=0
-09:57:07.438 DEBUG row 10 gate PASS  bright=2643  transitions=268
-09:57:07.832 DEBUG row 11 gate PASS  bright=3131  transitions=128
-09:57:08.410 DEBUG party_apply frame  cap=27  det=33  recog=973  total=1033ms  found=True  score=1.00  scale=0.66  rows=0
-09:57:08.658 DEBUG row 10 gate PASS  bright=2303  transitions=268
-09:57:09.127 DEBUG row 11 gate PASS  bright=3329  transitions=140
-09:57:09.609 DEBUG party_apply frame  cap=28  det=31  recog=952  total=1012ms  found=True  score=1.00  scale=0.66  rows=0
-09:57:09.932 DEBUG row 10 gate PASS  bright=2891  transitions=258
-09:57:10.247 DEBUG row 11 gate PASS  bright=3487  transitions=140
-09:57:10.660 DEBUG party_apply frame  cap=23  det=27  recog=730  total=781ms  found=True  score=1.00  scale=0.66  rows=0
-09:57:10.926 DEBUG row 10 gate PASS  bright=2831  transitions=266
-09:57:11.102 DEBUG row 11 gate PASS  bright=3491  transitions=148
-09:57:11.375 DEBUG party_apply frame  cap=22  det=30  recog=451  total=502ms  found=True  score=1.00  scale=0.66  rows=0
-09:57:11.405 INFO LiveDemo close requested
-09:57:11.407 DEBUG capture close (ignored): '_thread._local' object has no attribute 'bmp'
+10:10:55.925 INFO LiveDemo init  ui_scale=1.000  interval=250ms  monitor=None  window_title='Dungeon Fighter Online'  log_dir=C:\Users\Noble\AppData\Local\DFOGANG_RaidHelper
+10:10:58.964 INFO PaddleOCR reader initialized (PP-OCRv5)
+10:11:00.985 DEBUG party_apply frame  cap=26  det=4776  recog=0  total=4806ms  found=False  score=0.41  scale=0.30  rows=0
+10:11:05.687 DEBUG party_apply frame  cap=26  det=4481  recog=0  total=4507ms  found=False  score=0.42  scale=0.30  rows=0
+10:11:10.591 DEBUG party_apply frame  cap=29  det=4627  recog=0  total=4657ms  found=False  score=0.41  scale=0.30  rows=0
+10:11:15.323 DEBUG party_apply frame  cap=27  det=4605  recog=0  total=4633ms  found=False  score=0.42  scale=0.30  rows=0
+10:11:17.673 INFO loading templates for detected scale 0.462 (key 0.46)
+10:11:17.746 INFO loading templates for detected scale 0.330 (key 0.33)
+10:11:17.838 DEBUG party_apply frame  cap=29  det=2203  recog=2  total=2397ms  found=True  score=1.00  scale=0.66  rows=0
+10:11:17.838 INFO party_apply STATE lost -> found after 21.91s
+10:11:18.008 DEBUG party_apply frame  cap=27  det=30  recog=2  total=59ms  found=True  score=1.00  scale=0.66  rows=0
+10:11:18.267 DEBUG party_apply frame  cap=24  det=34  recog=18  total=77ms  found=True  score=1.00  scale=0.66  rows=0
+10:11:18.498 DEBUG party_apply frame  cap=22  det=29  recog=2  total=53ms  found=True  score=1.00  scale=0.66  rows=0
+10:11:18.762 DEBUG party_apply frame  cap=24  det=29  recog=18  total=71ms  found=True  score=1.00  scale=0.66  rows=0
+10:11:19.001 DEBUG party_apply frame  cap=25  det=32  recog=2  total=60ms  found=True  score=1.00  scale=0.66  rows=0
+10:11:19.275 DEBUG party_apply frame  cap=29  det=44  recog=3  total=76ms  found=True  score=1.00  scale=0.66  rows=0
+10:11:19.497 DEBUG party_apply frame  cap=24  det=29  recog=2  total=55ms  found=True  score=1.00  scale=0.66  rows=0
+10:11:19.745 DEBUG party_apply frame  cap=21  det=29  recog=2  total=52ms  found=True  score=1.00  scale=0.66  rows=0
+10:11:20.011 DEBUG party_apply frame  cap=27  det=31  recog=2  total=60ms  found=True  score=1.00  scale=0.66  rows=0
+10:11:20.267 DEBUG party_apply frame  cap=24  det=30  recog=18  total=72ms  found=True  score=1.00  scale=0.66  rows=0
+10:11:20.510 DEBUG party_apply frame  cap=27  det=30  recog=2  total=59ms  found=True  score=1.00  scale=0.66  rows=0
+10:11:20.766 DEBUG party_apply frame  cap=32  det=41  recog=2  total=76ms  found=True  score=1.00  scale=0.66  rows=0
+10:11:21.064 INFO marker moved  Δ=(-295,+87)  scan=94ms
+10:11:21.067 DEBUG party_apply frame  cap=23  det=94  recog=3  total=121ms  found=True  score=1.00  scale=0.66  rows=0
+10:11:21.249 INFO marker moved  Δ=(-124,+40)  scan=31ms
+10:11:21.252 DEBUG party_apply frame  cap=27  det=32  recog=3  total=63ms  found=True  score=1.00  scale=0.66  rows=0
+10:11:21.504 DEBUG party_apply frame  cap=27  det=32  recog=2  total=61ms  found=True  score=1.00  scale=0.66  rows=0
+10:11:21.766 DEBUG party_apply frame  cap=26  det=29  recog=18  total=73ms  found=True  score=1.00  scale=0.66  rows=0
+10:11:22.005 DEBUG party_apply frame  cap=24  det=30  recog=2  total=57ms  found=True  score=1.00  scale=0.66  rows=0
+10:11:22.265 DEBUG party_apply frame  cap=25  det=32  recog=18  total=75ms  found=True  score=1.00  scale=0.66  rows=0
+10:11:22.497 DEBUG party_apply frame  cap=23  det=31  recog=2  total=57ms  found=True  score=1.00  scale=0.66  rows=0
+10:11:22.764 DEBUG party_apply frame  cap=26  det=45  recog=2  total=73ms  found=True  score=1.00  scale=0.66  rows=0
+10:11:22.995 DEBUG party_apply frame  cap=24  det=29  recog=2  total=55ms  found=True  score=1.00  scale=0.66  rows=0
+10:11:23.261 DEBUG party_apply frame  cap=20  det=41  recog=2  total=63ms  found=True  score=1.00  scale=0.66  rows=0
+10:11:23.502 DEBUG party_apply frame  cap=25  det=32  recog=2  total=59ms  found=True  score=1.00  scale=0.66  rows=0
+10:11:23.771 DEBUG party_apply frame  cap=25  det=44  recog=3  total=72ms  found=True  score=1.00  scale=0.66  rows=0
+10:11:24.014 DEBUG party_apply frame  cap=30  det=32  recog=2  total=65ms  found=True  score=1.00  scale=0.66  rows=0
+10:11:24.225 INFO LiveDemo close requested
+10:11:24.227 DEBUG capture close (ignored): '_thread._local' object has no attribute 'bmp'
