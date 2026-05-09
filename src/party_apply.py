@@ -82,8 +82,7 @@ _logger = logging.getLogger("dfogang.party_apply")
 # Cold party-apply detection must be cheap. Native marker probes cover the
 # supported UI scales (0/50/69/100). The expensive all-scale sweep is fallback
 # only and is throttled while the window is closed.
-PA_FULL_COLD_SWEEP_INTERVAL_S = 1.50
-PA_FALLBACK_SCALES_PER_FRAME = 1
+PA_COLD_CANDIDATES_PER_FRAME = 2
 
 # Geometry measured from samples/party_apply_03.png at UI Scale 69%.
 REF_MARKER_SIZE = (734, 16)  # marker (column header strip) WxH
@@ -259,11 +258,14 @@ def detect_party_apply(
 ) -> PartyApplyDetection:
     """Locate the party-apply window in ``image_rgb``.
 
+    This version keeps cold detection bounded. It never performs an entire
+    marker x scale sweep in one frame. Instead it probes a small number of
+    high-priority marker/scale candidates per call and advances a cursor.
+
     Fast path order:
     1. previous hint local lookup,
-    2. native-size marker scan for supported UI scales,
-    3. near-scale scan if known,
-    4. throttled full multi-scale sweep as fallback.
+    2. known-scale probes when a previous scale exists,
+    3. rotating cold candidate probes for supported/common UI scales.
     """
     img_gray = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2GRAY)
     marker_grays = (
@@ -290,83 +292,92 @@ def detect_party_apply(
         if best_hint is not None:
             return best_hint
 
-    # Cold fast path: test each marker at its native capture size. This covers
-    # the explicitly supported UI scales without resizing, and avoids 4s+ sweeps.
-    native_best = PartyApplyDetection(False, 0.0, 1.0, (0, 0, 0, 0), [])
-    for marker_gray in marker_grays:
-        cand = _scan_scales([1.0], img_gray, marker_gray, score_threshold, max_rows, H, W)
-        if (
-            (cand.found and not native_best.found)
-            or (cand.found == native_best.found and cand.score > native_best.score)
-        ):
-            native_best = cand
-    if native_best.found and native_best.score >= 0.90:
-        return native_best
+    def _scan_pair(marker_gray: np.ndarray, resize_scale: float) -> PartyApplyDetection:
+        return _scan_scales([float(resize_scale)], img_gray, marker_gray, score_threshold, max_rows, H, W)
 
+    def _best_marker_for_effective_scale(effective_scale: float) -> np.ndarray:
+        return min(marker_grays, key=lambda m: abs(_marker_base_scale(m) - effective_scale))
+
+    def _resize_for_effective_scale(marker_gray: np.ndarray, effective_scale: float) -> float:
+        base = _marker_base_scale(marker_gray)
+        if base <= 0:
+            return 1.0
+        return float(effective_scale) / base
+
+    # If app.py has a remembered scale, stay very cheap: probe the closest
+    # native marker and one rotating near-scale candidate. The previous v8e
+    # path scanned a whole narrow scale band here and produced ~1.3s det after
+    # the window was closed.
     if near_scale is not None:
-        # Restart after window close: known UI scale, so probe closest native
-        # marker first, then only a narrow scale band.
-        best_marker = min(marker_grays, key=lambda m: abs(_marker_base_scale(m) - near_scale))
-        native = _scan_scales([1.0], img_gray, best_marker, score_threshold, max_rows, H, W)
-        if native.found and native.score >= 0.90:
-            return native
+        best_marker = _best_marker_for_effective_scale(float(near_scale))
+        offsets = (-near_scale_radius, -0.06, -0.03, 0.0, 0.03, 0.06, near_scale_radius)
+        idx = int(getattr(detect_party_apply, "_near_scale_probe_idx", 0)) % len(offsets)
+        setattr(detect_party_apply, "_near_scale_probe_idx", (idx + 1) % len(offsets))
 
-        base = _marker_base_scale(best_marker)
-        lo = max(0.2, (near_scale - near_scale_radius) / base)
-        hi = max(lo + scale_step, (near_scale + near_scale_radius) / base)
-        scales = np.arange(lo, hi + 1e-6, scale_step)
-        wide = _scan_scales(scales, img_gray, best_marker, score_threshold, max_rows, H, W)
-        return wide if wide.score > native.score else native
+        targets = [float(near_scale), max(min_scale, min(max_scale, float(near_scale) + offsets[idx]))]
+        best = PartyApplyDetection(False, 0.0, 1.0, (0, 0, 0, 0), [])
+        for target in targets:
+            scale = _resize_for_effective_scale(best_marker, target)
+            cand = _scan_pair(best_marker, scale)
+            if (
+                (cand.found and not best.found)
+                or (cand.found == best.found and cand.score > best.score)
+            ):
+                best = cand
+            if cand.found and cand.score >= 0.90:
+                return cand
+        return best
 
-    # If the window is closed and native probes failed, do not run the entire
-    # all-marker/all-scale sweep in one frame. On 1920x1080 this path can take
-    # 4-5 seconds when the party-apply window is absent. Instead, advance a
-    # tiny coarse-scale fallback cursor each call. This keeps the UI loop
-    # responsive while still eventually covering unusual non-native scales.
-    fallback_scales = np.unique(
-        np.concatenate([
-            np.arange(min_scale, max_scale + 1e-6, coarse_step),
-            np.array([1.0]),
-        ])
+    # Unknown/cold scale: probe a small prioritized list of effective scales.
+    # The first entries are the scale values observed in logs for UI Scale 0%
+    # and common marker captures. Only PA_COLD_CANDIDATES_PER_FRAME candidates
+    # are scanned per call, keeping det bounded while closed.
+    priority_effective_scales = (
+        0.66,
+        1.00,
+        0.46,
+        0.57,
+        0.75,
+        0.88,
+        1.10,
+        1.28,
+        1.54,
+        1.65,
+        0.30,
+        0.36,
+        0.43,
+        0.49,
+        0.59,
+        0.61,
+        0.84,
+        1.40,
+        1.80,
+        2.00,
     )
-    if fallback_scales.size == 0:
-        return native_best
-
-    idx = int(getattr(detect_party_apply, "_fallback_scale_idx", 0)) % int(fallback_scales.size)
-    batch_indices = [(idx + j) % int(fallback_scales.size) for j in range(PA_FALLBACK_SCALES_PER_FRAME)]
+    idx = int(getattr(detect_party_apply, "_cold_probe_idx", 0)) % len(priority_effective_scales)
     setattr(
         detect_party_apply,
-        "_fallback_scale_idx",
-        (idx + PA_FALLBACK_SCALES_PER_FRAME) % int(fallback_scales.size),
+        "_cold_probe_idx",
+        (idx + PA_COLD_CANDIDATES_PER_FRAME) % len(priority_effective_scales),
     )
 
-    fallback_best = native_best
-    fallback_best_marker: np.ndarray | None = None
-    for scale_idx in batch_indices:
-        one_scale = [float(fallback_scales[scale_idx])]
-        for marker_gray in marker_grays:
-            cand = _scan_scales(one_scale, img_gray, marker_gray, score_threshold, max_rows, H, W)
-            if (
-                (cand.found and not fallback_best.found)
-                or (cand.found == fallback_best.found and cand.score > fallback_best.score)
-            ):
-                fallback_best = cand
-                fallback_best_marker = marker_gray
+    best = PartyApplyDetection(False, 0.0, 1.0, (0, 0, 0, 0), [])
+    for j in range(PA_COLD_CANDIDATES_PER_FRAME):
+        target = float(priority_effective_scales[(idx + j) % len(priority_effective_scales)])
+        if target < min_scale * 0.65 or target > max_scale * 1.25:
+            continue
+        marker_gray = _best_marker_for_effective_scale(target)
+        scale = _resize_for_effective_scale(marker_gray, target)
+        cand = _scan_pair(marker_gray, scale)
+        if (
+            (cand.found and not best.found)
+            or (cand.found == best.found and cand.score > best.score)
+        ):
+            best = cand
+        if cand.found and cand.score >= 0.90:
+            return cand
 
-    # If the coarse incremental pass actually found a candidate, refine just
-    # around that scale. This is the only extra work we allow in this frame.
-    if fallback_best.found and fallback_best_marker is not None:
-        base = _marker_base_scale(fallback_best_marker)
-        center = fallback_best.scale / base
-        fine_lo = max(min_scale, center - coarse_step)
-        fine_hi = min(max_scale, center + coarse_step)
-        fine = np.arange(fine_lo, fine_hi + 1e-6, scale_step)
-        fine_best = _scan_scales(fine, img_gray, fallback_best_marker, score_threshold, max_rows, H, W)
-        if fine_best.score >= fallback_best.score:
-            return fine_best
-
-    return fallback_best
-
+    return best
 
 def _scan_scales(
     scales,
