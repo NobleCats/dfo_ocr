@@ -273,16 +273,34 @@ def read_fame(crop_rgb: np.ndarray) -> tuple[int | None, str, float]:
 
 
 _FAME_MIN, _FAME_MAX = 10_000, 999_999
+# Most current characters live in this band. We use it as a TIE-BREAK
+# — when the raw OCR digits parse to something out of this band but a
+# trimmed variant lands inside it, prefer the trimmed value. Outside
+# this band is still accepted (future fame inflation) when no in-band
+# variant exists.
+_FAME_TYPICAL_MIN, _FAME_TYPICAL_MAX = 30_000, 200_000
 
 
 def _parse_with_trim(digits: str) -> int | None:
+    """Pick the most plausible fame value from OCR digits.
+
+    OCR commonly grabs a stray leading digit from the star icon's
+    anti-aliased lobe (e.g. '276477' for real '76,477') OR a stray
+    trailing one. We try the original plus three single-side trims and
+    pick by:
+      1. prefer candidates within the typical fame band
+      2. tie-break by SHORTEST digit string (fewer hallucinated chars)
+    Falls back to "any in [10_000..999_999]" so future >200k fame still
+    parses.
+    """
     candidates = {digits}
     if len(digits) > 1:
         candidates.add(digits[1:])
         candidates.add(digits[:-1])
     if len(digits) > 2:
         candidates.add(digits[1:-1])
-    best = None
+
+    parsed: list[int] = []
     for cand in candidates:
         if not cand:
             continue
@@ -291,9 +309,14 @@ def _parse_with_trim(digits: str) -> int | None:
         except ValueError:
             continue
         if _FAME_MIN <= v <= _FAME_MAX:
-            if best is None or len(cand) > len(str(best)):
-                best = v
-    return best
+            parsed.append(v)
+    if not parsed:
+        return None
+    typical = [v for v in parsed if _FAME_TYPICAL_MIN <= v <= _FAME_TYPICAL_MAX]
+    pool = typical or parsed
+    # Shortest digit count first, then smallest numeric value as final tie-break.
+    pool.sort(key=lambda v: (len(str(v)), v))
+    return pool[0]
 
 
 def read_class(crop_rgb: np.ndarray) -> tuple[str, float]:

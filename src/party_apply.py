@@ -182,10 +182,12 @@ class PartyApplyRow:
         characters to look like a class but never include 'Lv' or a fame
         number.
         """
-        # General-OCR confidence runs 0..1 (typically >=0.4 on real text)
-        # while template mean-score uses a similar scale; 0.3 is permissive
-        # enough for either path.
-        if self.fame is not None and self.fame_score >= 0.3:
+        # General-OCR confidence on a real fame number is consistently
+        # 0.95+; conf in the 0.3-0.6 band almost always means we OCR'd
+        # banner/icon noise (e.g. 'Click a slot to remove' read as
+        # 'rckaslottoremove' with a phantom 5-digit fame at conf 0.44).
+        # Raise the floor so banners no longer slip through is_empty.
+        if self.fame is not None and self.fame_score >= 0.7:
             return False
         # Look for the 'Lv' / 'lv' marker in the name OCR — even when '115'
         # is mangled (ILS / IIS / 11S), the 'Lv' itself is reliable since it
@@ -339,43 +341,67 @@ def detect_party_apply(image_rgb: np.ndarray,
 
     full_scales = np.arange(min_scale, max_scale + 1e-6, scale_step)
     if near_scale is not None:
-        best = PartyApplyDetection(False, 0.0, 1.0, (0, 0, 0, 0), [])
-        for marker_gray in marker_grays:
-            base = _marker_base_scale(marker_gray)
-            lo = max(0.2, (near_scale - near_scale_radius) / base)
-            hi = max(lo + scale_step, (near_scale + near_scale_radius) / base)
-            scales = np.arange(lo, hi + 1e-6, scale_step)
-            cand = _scan_scales(scales, img_gray, marker_gray,
-                                score_threshold, max_rows, H, W)
-            if ((cand.found and not best.found) or
-                    (cand.found == best.found and cand.score > best.score)):
-                best = cand
-        return best
+        # Restart after a window-close: we know the UI scale already, so
+        # pick the marker whose native base scale matches it and probe
+        # the marker's NATIVE size first (s=1.0). When it matches — the
+        # common case for a same-game-session restart — that single
+        # matchTemplate replaces the whole near-band sweep.
+        best_marker = min(
+            marker_grays,
+            key=lambda m: abs(_marker_base_scale(m) - near_scale))
+        native = _scan_scales([1.0], img_gray, best_marker,
+                              score_threshold, max_rows, H, W)
+        if native.found and native.score >= 0.9:
+            return native
+        base = _marker_base_scale(best_marker)
+        lo = max(0.2, (near_scale - near_scale_radius) / base)
+        hi = max(lo + scale_step, (near_scale + near_scale_radius) / base)
+        scales = np.arange(lo, hi + 1e-6, scale_step)
+        wide = _scan_scales(scales, img_gray, best_marker,
+                            score_threshold, max_rows, H, W)
+        return wide if wide.score > native.score else native
 
     # Two-stage scan: coarse (large step) over full range to find the right
     # neighbourhood, then fine refinement around the best candidate. This
     # cuts cold-scan latency on a 2K-wide capture from ~5s to <1s without
     # sacrificing score quality.
-    coarse = np.arange(min_scale, max_scale + 1e-6, coarse_step)
+    #
+    # We *always* include s=1.0 so a marker captured at its native UI scale
+    # gets a perfect match against frames at the same scale — the marker
+    # template is sharp enough that even a 5% resize (s=0.95 / 1.05) drops
+    # the score below the threshold. Without the explicit s=1.0 probe, the
+    # 100pct marker on a 100% UI frame coarse-picks s=0.45 score 0.28 and
+    # never recovers in fine refinement.
+    coarse = np.unique(np.concatenate([
+        np.arange(min_scale, max_scale + 1e-6, coarse_step),
+        np.array([1.0]),
+    ]))
     coarse_best = PartyApplyDetection(False, 0.0, 1.0, (0, 0, 0, 0), [])
+    coarse_best_marker: np.ndarray | None = None
     for marker_gray in marker_grays:
         cand = _scan_scales(coarse, img_gray, marker_gray, score_threshold,
                             max_rows, H, W)
         if ((cand.found and not coarse_best.found) or
                 (cand.found == coarse_best.found and cand.score > coarse_best.score)):
             coarse_best = cand
-    if coarse_best.score == 0:
+            coarse_best_marker = marker_gray
+        # A near-perfect coarse hit (e.g. native-scale marker) is already
+        # the answer — fine refinement can't beat it. Bail early to keep
+        # cold-scan latency well under a second.
+        if cand.score >= 0.97:
+            break
+    if coarse_best.score == 0 or coarse_best_marker is None:
         return coarse_best
+    if coarse_best.score >= 0.97:
+        return coarse_best
+    # Fine refinement only on the winning coarse marker. Running it across
+    # all markers was 4x more matchTemplate calls for no quality benefit —
+    # the wrong-base markers can never beat the winner here.
     fine_lo = max(min_scale, coarse_best.scale - coarse_step)
     fine_hi = min(max_scale, coarse_best.scale + coarse_step)
     fine = np.arange(fine_lo, fine_hi + 1e-6, scale_step)
-    fine_best = PartyApplyDetection(False, 0.0, 1.0, (0, 0, 0, 0), [])
-    for marker_gray in marker_grays:
-        cand = _scan_scales(fine, img_gray, marker_gray, score_threshold,
-                            max_rows, H, W)
-        if ((cand.found and not fine_best.found) or
-                (cand.found == fine_best.found and cand.score > fine_best.score)):
-            fine_best = cand
+    fine_best = _scan_scales(fine, img_gray, coarse_best_marker,
+                             score_threshold, max_rows, H, W)
     if fine_best.found and not coarse_best.found:
         return fine_best
     if coarse_best.found and not fine_best.found:
@@ -488,11 +514,67 @@ def recognize_party_apply(image_rgb: np.ndarray,
     empties_since_real = 0
     pitch = int(round(REF_ROW_PITCH * s))
     name_line_h = max(10, int(round(REF_ROW_TOP_LINE_H * s)))
+    # Build the column-X helpers ONCE per call. They do not depend on row.
+    def _col(ref_x: int) -> int:
+        return mx + int(round((ref_x - REF_MARKER_LEFT_IN_WINDOW) * s))
+
+    fame_left_for_check = _col(REF_FAME_X[0])
+    name_right_for_check = _col(REF_NAME_X[1])
+    # Hard worst-case bound: at most this many rows go through the full
+    # OCR pipeline per frame. Prevents the 1.5-2s blowup when the gate
+    # leaks game-scene rows through (each PaddleOCR call is ~150ms; 5
+    # leaks already double the frame budget).
+    MAX_OCR_PER_FRAME = 8
+    ocr_rows_used = 0
     for i, row_top in enumerate(det.rows_top_y):
         row_bot = row_top + pitch - 1
         if row_top >= H:
             break
         row_bot = min(row_bot, H - 1)
+
+        # Fast empty-row gate: a real text row has many small horizontal
+        # bright→dark transitions (one per glyph edge). Game content
+        # outside the party_apply window — skill bars, character icons,
+        # tile lighting — has equally bright pixels but only a handful
+        # of large blobs, so its transition count is low. Counting
+        # transitions instead of just bright pixels keeps random rows
+        # below the visible window from falling into a full OCR pass
+        # (each costs ~150ms and added up to 1.5s/frame at low UI
+        # scales where rows_top_y extends past the window bottom).
+        check_x0 = max(0, fame_left_for_check)
+        check_x1 = min(W, name_right_for_check)
+        check_y1 = min(H, row_top + pitch)
+        if check_x1 - check_x0 >= 10 and check_y1 - row_top >= 5:
+            row_strip = image_rgb[row_top:check_y1, check_x0:check_x1]
+            gray_max = row_strip.max(axis=2)
+            bg = float(np.percentile(gray_max, 25))
+            bright = gray_max > bg + 60
+            bright_count = int(bright.sum())
+            if bright_count < 20:
+                empties_since_real += 1
+                if out and empties_since_real >= 3:
+                    break
+                continue
+            transitions = int((bright[:, 1:] != bright[:, :-1]).sum())
+            if transitions < 30:
+                empties_since_real += 1
+                if out and empties_since_real >= 3:
+                    break
+                continue
+            # Diagnostic: log every row that passes the gate. Lets us see
+            # in user logs whether real text or game-scene leakage is
+            # what's burning OCR cycles.
+            _logger.debug(
+                "row %d gate PASS  bright=%d  transitions=%d", i,
+                bright_count, transitions)
+        # Hard cap the OCR-attempted row count so a leaky gate cannot
+        # snowball into a 2s frame.
+        if ocr_rows_used >= MAX_OCR_PER_FRAME:
+            empties_since_real += 1
+            if out and empties_since_real >= 3:
+                break
+            continue
+        ocr_rows_used += 1
 
         # Fame and class X ranges are isolated from any other text, so we
         # can safely use a generous Y window that absorbs the +/-15px row

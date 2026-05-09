@@ -579,20 +579,26 @@ class LiveDemo:
             # it. Subsequent cold scans (window closed → reopened) only
             # search a narrow band around that scale — drops restart
             # latency from a 1.9s full sweep to ~100ms.
-            use_narrow = (cold and self._last_pa_scale is not None
-                          and self._pa_narrow_misses < 2)
-            near = self._last_pa_scale if use_narrow else None
+            # Pass `near_scale` whenever we know the UI scale, regardless of
+            # whether we have a hint. detect_party_apply tries the hint
+            # first; if hint lookup misses (window gone), it falls through
+            # to the near_scale path instead of the slow full coarse+fine
+            # sweep. Without this, the lost-transition frame pays a 4.5s
+            # full-scan cost on a 2K capture.
+            scale_known = (self._last_pa_scale is not None
+                           and self._pa_narrow_misses < 2)
+            near = self._last_pa_scale if scale_known else None
             det = detect_party_apply(frame, hint=self._last_party_apply_hint,
                                      near_scale=near)
             det_ms = (time.perf_counter() - t_det0) * 1000
             if det.found:
                 self._last_pa_scale = det.scale
                 self._pa_narrow_misses = 0
-            elif cold and use_narrow:
+            elif cold and scale_known:
                 self._pa_narrow_misses += 1
-            elif cold and not use_narrow:
-                # Full sweep ran (forgot scale was wrong). Keep counter
-                # high so we don't bounce back to narrow next frame.
+            elif cold and not scale_known:
+                # Full sweep ran (no cached scale yet). Keep counter at 0
+                # so the next find populates `_last_pa_scale` cleanly.
                 self._pa_narrow_misses = 0
             # Log when the marker jumped — diagnostic for window drags.
             if had_hint and det.found and prev_hint_xy is not None:
@@ -610,6 +616,7 @@ class LiveDemo:
                 "frame_size": (frame.shape[1], frame.shape[0]),
                 "ui_scale_factor": self.ui_scale,
             }
+            recog_ms = 0.0
             if det.found:
                 # det.scale is the actual marker size relative to the 69%-UI
                 # reference. Templates need to be scaled to match the visible
@@ -620,7 +627,9 @@ class LiveDemo:
                 _, digit_lib = self._get_templates_for_scale(digit_scale)
                 digit_templates = {ch: v for ch, v in digit_lib.items()
                                    if ch.isdigit() or ch == ","}
+                t_recog0 = time.perf_counter()
                 rows = recognize_party_apply(frame, det, templates, digit_templates)
+                recog_ms = (time.perf_counter() - t_recog0) * 1000
             else:
                 template_scale = self._active_template_scale
                 rows = []
@@ -651,10 +660,10 @@ class LiveDemo:
                     r.index, fame_str, r.fame_text, r.fame_score,
                     r.class_name, r.class_raw, r.class_score)
         self._log.debug(
-            "party_apply frame  cap=%.0f  det=%.0f  total=%.0fms  "
+            "party_apply frame  cap=%.0f  det=%.0f  recog=%.0f  total=%.0fms  "
             "found=%s  score=%.2f  scale=%.2f  rows=%d",
-            cap_ms, det_ms, elapsed_ms, det.found, det.score, det.scale,
-            len(rows))
+            cap_ms, det_ms, recog_ms, elapsed_ms, det.found, det.score,
+            det.scale, len(rows))
         self._safe_emit(self._frame_emitter.processed, {
             "mode": "party_apply",
             "det": det,
