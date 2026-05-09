@@ -244,17 +244,27 @@ $ProtectedNames = @(
     'neople', 'overlay', 'party_apply', 'qt_dpi', 'recognize',
     'resources', 'segment', 'templates'
 )
+# Only flag .py files that sit at the top level of the bundle (directly inside
+# DFOGANG_RaidHelper/ or DFOGANG_RaidHelper/_internal/).  Third-party packages
+# that happen to contain a file with the same name (e.g. datasets/utils/extract.py
+# inside paddleocr's dataset helpers) live deeper in the tree and are not our code.
+$InternalDir = Join-Path $DistApp '_internal'
 $leaked = Get-ChildItem -LiteralPath $DistApp -Recurse -File -Filter *.py |
-    Where-Object { $ProtectedNames -contains [System.IO.Path]::GetFileNameWithoutExtension($_.Name) }
+    Where-Object {
+        $ProtectedNames -contains [System.IO.Path]::GetFileNameWithoutExtension($_.Name) -and
+        ($_.DirectoryName -eq $DistApp -or $_.DirectoryName -eq $InternalDir)
+    }
 if ($leaked) {
     $leaked | ForEach-Object { Write-Host "  EXPOSED: $($_.FullName)" -ForegroundColor Red }
     Fail "$(@($leaked).Count) project .py file(s) leaked into dist. Aborting."
 }
 Write-Host '  dist contains no project .py source files.'
 
-# Also confirm our compiled .pyd modules made it into the bundle.
-$pydInDist = Get-ChildItem -LiteralPath $DistApp -Recurse -File -Filter *.pyd |
-    Where-Object { $ProtectedNames -contains [System.IO.Path]::GetFileNameWithoutExtension($_.Name) }
+# Confirm our compiled .pyd modules made it into the bundle.
+# Filenames include the Python ABI tag (e.g. app.cp310-win_amd64.pyd), so
+# split on the first dot to get the bare module name before comparing.
+$pydInDist = Get-ChildItem -LiteralPath $InternalDir -File -Filter *.pyd |
+    Where-Object { $ProtectedNames -contains ($_.Name -split '\.')[0] }
 Write-Host "  Bundled $(@($pydInDist).Count) protected .pyd module(s)."
 
 if (Test-Path $ZipPath) {
