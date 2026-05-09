@@ -79,10 +79,11 @@ def _detect_top_text_y(
 
 _logger = logging.getLogger("dfogang.party_apply")
 
-# Cold party-apply detection must be cheap. Native marker probes cover the
-# supported UI scales (0/50/69/100). The expensive all-scale sweep is fallback
-# only and is throttled while the window is closed.
-PA_COLD_CANDIDATES_PER_FRAME = 2
+# Cold party-apply detection must be cheap, but DFO UI Scale is continuous
+# (0..100 in 1% steps). We therefore probe a bounded number of continuous
+# effective-scale candidates per frame instead of relying only on native marker
+# sizes or running a full sweep in one tick.
+PA_COLD_CANDIDATES_PER_FRAME = 4
 
 # Geometry measured from samples/party_apply_03.png at UI Scale 69%.
 REF_MARKER_SIZE = (734, 16)  # marker (column header strip) WxH
@@ -313,10 +314,51 @@ def detect_party_apply(
             return 1.0
         return float(effective_scale) / base
 
-    # If app.py has a remembered scale, stay very cheap: probe the closest
-    # native marker and one rotating near-scale candidate. The previous v8e
-    # path scanned a whole narrow scale band here and produced ~1.3s det after
-    # the window was closed.
+    def _better(a: PartyApplyDetection, b: PartyApplyDetection) -> PartyApplyDetection:
+        if b.found and not a.found:
+            return b
+        if a.found and not b.found:
+            return a
+        return b if b.score > a.score else a
+
+    def _make_priority_effective_scales() -> tuple[float, ...]:
+        # Hand-tuned anchors first, then a dense continuous grid. This supports
+        # every DFO UI Scale value without needing a marker file for every 1%.
+        anchors = [
+            0.66, 1.00, 0.46, 0.57, 0.75, 0.88, 1.10, 1.28,
+            1.54, 1.65, 0.30, 0.36, 0.43, 0.49, 0.59, 0.61,
+            0.84, 1.40, 1.80, 2.00,
+        ]
+        dense = [round(x * 0.02, 2) for x in range(15, 101)]  # 0.30..2.00
+        seen: set[float] = set()
+        out: list[float] = []
+        for v in anchors + dense:
+            if min_scale * 0.65 <= v <= max_scale * 1.25 and v not in seen:
+                seen.add(v)
+                out.append(v)
+        return tuple(out)
+
+    # Always probe every available marker at its native size before using a
+    # remembered near_scale. This is important when the user changes DFO UI
+    # Scale during the same app session: app.py may still pass near_scale=0.66
+    # from a prior 0% detection, but the new 50%/100% marker can match
+    # perfectly at native size.
+    native_best = PartyApplyDetection(False, 0.0, 1.0, (0, 0, 0, 0), [])
+    for marker_gray in marker_grays:
+        cand = _scan_pair(marker_gray, 1.0)
+        if (
+            (cand.found and not native_best.found)
+            or (cand.found == native_best.found and cand.score > native_best.score)
+        ):
+            native_best = cand
+        if cand.found and cand.score >= 0.90:
+            return cand
+
+    # If app.py has a remembered scale, probe it first, but do not stop there
+    # on failure. DFO UI Scale can be changed inside the same app session, so a
+    # stale 0% near_scale must not prevent 50%/100% or intermediate scales from
+    # being probed.
+    best = native_best
     if near_scale is not None:
         best_marker = _best_marker_for_effective_scale(float(near_scale))
         offsets = (-near_scale_radius, -0.06, -0.03, 0.0, 0.03, 0.06, near_scale_radius)
@@ -324,45 +366,17 @@ def detect_party_apply(
         setattr(detect_party_apply, "_near_scale_probe_idx", (idx + 1) % len(offsets))
 
         targets = [float(near_scale), max(min_scale, min(max_scale, float(near_scale) + offsets[idx]))]
-        best = PartyApplyDetection(False, 0.0, 1.0, (0, 0, 0, 0), [])
         for target in targets:
             scale = _resize_for_effective_scale(best_marker, target)
             cand = _scan_pair(best_marker, scale)
-            if (
-                (cand.found and not best.found)
-                or (cand.found == best.found and cand.score > best.score)
-            ):
-                best = cand
+            best = _better(best, cand)
             if cand.found and cand.score >= 0.90:
                 return cand
-        return best
 
-    # Unknown/cold scale: probe a small prioritized list of effective scales.
-    # The first entries are the scale values observed in logs for UI Scale 0%
-    # and common marker captures. Only PA_COLD_CANDIDATES_PER_FRAME candidates
-    # are scanned per call, keeping det bounded while closed.
-    priority_effective_scales = (
-        0.66,
-        1.00,
-        0.46,
-        0.57,
-        0.75,
-        0.88,
-        1.10,
-        1.28,
-        1.54,
-        1.65,
-        0.30,
-        0.36,
-        0.43,
-        0.49,
-        0.59,
-        0.61,
-        0.84,
-        1.40,
-        1.80,
-        2.00,
-    )
+    # Cold/changed-scale path: probe a small, rotating slice of a continuous
+    # effective-scale grid. This avoids the v8 full sweep stalls while covering
+    # UI Scale 0..100 in 1% increments over several frames.
+    priority_effective_scales = _make_priority_effective_scales()
     idx = int(getattr(detect_party_apply, "_cold_probe_idx", 0)) % len(priority_effective_scales)
     setattr(
         detect_party_apply,
@@ -370,19 +384,12 @@ def detect_party_apply(
         (idx + PA_COLD_CANDIDATES_PER_FRAME) % len(priority_effective_scales),
     )
 
-    best = PartyApplyDetection(False, 0.0, 1.0, (0, 0, 0, 0), [])
     for j in range(PA_COLD_CANDIDATES_PER_FRAME):
         target = float(priority_effective_scales[(idx + j) % len(priority_effective_scales)])
-        if target < min_scale * 0.65 or target > max_scale * 1.25:
-            continue
         marker_gray = _best_marker_for_effective_scale(target)
         scale = _resize_for_effective_scale(marker_gray, target)
         cand = _scan_pair(marker_gray, scale)
-        if (
-            (cand.found and not best.found)
-            or (cand.found == best.found and cand.score > best.score)
-        ):
-            best = cand
+        best = _better(best, cand)
         if cand.found and cand.score >= 0.90:
             return cand
 
