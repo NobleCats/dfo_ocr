@@ -158,8 +158,6 @@ excludes = [
     "sympy",
     "numba",
     "pytest",
-    "unittest",
-    "pydoc",
 ]
 
 
