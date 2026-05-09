@@ -243,19 +243,33 @@ def _grid_support_score(
     return float(np.mean(sorted(supports, reverse=True)[:3]))
 
 
-def _candidate_found(marker_score: float, grid_score: float, score_threshold: float) -> bool:
+def _candidate_found(
+    marker_score: float,
+    grid_score: float,
+    score_threshold: float,
+    effective_scale: float,
+) -> bool:
     """Decide whether a marker candidate is usable.
 
-    Intermediate DFO UI Scale values do not render as a simple resize of the
-    0/50/69/100 marker captures. Their header-template score can be only
-    ~0.32-0.45 even when the request list is present. Promote these candidates
-    only when the table structure under the header is strong enough.
+    Intermediate DFO UI Scale values can render differently from a simple resize
+    of the 0/50/69/100 marker captures, so a lower marker score may still be
+    valid. However, v8l showed that low-score promotion at tiny effective scales
+    (notably ~0.36) creates stable false positives while the request list is
+    closed. Only promote low-score candidates in the effective-scale band where
+    real request-list windows have been observed, and require stronger grid
+    support than v8l.
     """
     if marker_score >= score_threshold:
         return True
-    if marker_score >= 0.40 and grid_score >= 1.35:
+
+    # Do not grid-promote implausibly small/large candidates. These were the
+    # source of closed-window false positives such as score≈0.39, scale≈0.36.
+    if effective_scale < 0.55 or effective_scale > 1.45:
+        return False
+
+    if marker_score >= 0.44 and grid_score >= 1.80:
         return True
-    if marker_score >= 0.32 and grid_score >= 2.15:
+    if marker_score >= 0.38 and grid_score >= 3.00:
         return True
     return False
 
@@ -492,7 +506,7 @@ def _hint_lookup(
 
     abs_loc = (max_loc[0] + x0, max_loc[1] + y0)
     grid_score = _grid_support_score(img_gray, abs_loc, new_w, new_h, effective_scale, max_rows)
-    if not _candidate_found(float(max_val), grid_score, threshold):
+    if not _candidate_found(float(max_val), grid_score, threshold, effective_scale):
         return None
 
     return _build_detection(
@@ -528,7 +542,7 @@ def _build_detection(
         rows_top_y.append(y)
 
     return PartyApplyDetection(
-        found=_candidate_found(float(score), float(grid_score), threshold),
+        found=_candidate_found(float(score), float(grid_score), threshold, float(scale)),
         score=float(score),
         scale=float(scale),
         marker_xywh=(mx, my, marker_w, marker_h),
