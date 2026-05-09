@@ -79,11 +79,10 @@ def _detect_top_text_y(
 
 _logger = logging.getLogger("dfogang.party_apply")
 
-# Cold party-apply detection must be cheap, but DFO UI Scale is continuous
-# (0..100 in 1% steps). We therefore probe a bounded number of continuous
-# effective-scale candidates per frame instead of relying only on native marker
-# sizes or running a full sweep in one tick.
-PA_COLD_CANDIDATES_PER_FRAME = 4
+# Cold party-apply detection must be cheap. Native marker probes cover the
+# supported UI scales (0/50/69/100). The expensive all-scale sweep is fallback
+# only and is throttled while the window is closed.
+PA_COLD_CANDIDATES_PER_FRAME = 6
 
 # Geometry measured from samples/party_apply_03.png at UI Scale 69%.
 REF_MARKER_SIZE = (734, 16)  # marker (column header strip) WxH
@@ -245,10 +244,20 @@ def _grid_support_score(
 
 
 def _candidate_found(marker_score: float, grid_score: float, score_threshold: float) -> bool:
-    """Decide whether a marker candidate is usable."""
+    """Decide whether a marker candidate is usable.
+
+    Intermediate DFO UI Scale values do not render as a simple resize of the
+    0/50/69/100 marker captures. Their header-template score can be only
+    ~0.32-0.45 even when the request list is present. Promote these candidates
+    only when the table structure under the header is strong enough.
+    """
     if marker_score >= score_threshold:
         return True
-    return marker_score >= 0.50 and grid_score >= 2.0
+    if marker_score >= 0.40 and grid_score >= 1.35:
+        return True
+    if marker_score >= 0.32 and grid_score >= 2.15:
+        return True
+    return False
 
 
 def detect_party_apply(
