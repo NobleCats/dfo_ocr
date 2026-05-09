@@ -83,6 +83,7 @@ _logger = logging.getLogger("dfogang.party_apply")
 # supported UI scales (0/50/69/100). The expensive all-scale sweep is fallback
 # only and is throttled while the window is closed.
 PA_FULL_COLD_SWEEP_INTERVAL_S = 1.50
+PA_FALLBACK_SCALES_PER_FRAME = 1
 
 # Geometry measured from samples/party_apply_03.png at UI Scale 69%.
 REF_MARKER_SIZE = (734, 16)  # marker (column header strip) WxH
@@ -317,52 +318,54 @@ def detect_party_apply(
         wide = _scan_scales(scales, img_gray, best_marker, score_threshold, max_rows, H, W)
         return wide if wide.score > native.score else native
 
-    # If the window is closed and the native probes failed, throttle the slow
-    # all-scale fallback so we do not block every tick for several seconds.
-    now = time.perf_counter()
-    last_full = float(getattr(detect_party_apply, "_last_full_cold_sweep_t", 0.0))
-    if (now - last_full) < PA_FULL_COLD_SWEEP_INTERVAL_S:
-        return native_best
-
-    coarse = np.unique(
+    # If the window is closed and native probes failed, do not run the entire
+    # all-marker/all-scale sweep in one frame. On 1920x1080 this path can take
+    # 4-5 seconds when the party-apply window is absent. Instead, advance a
+    # tiny coarse-scale fallback cursor each call. This keeps the UI loop
+    # responsive while still eventually covering unusual non-native scales.
+    fallback_scales = np.unique(
         np.concatenate([
             np.arange(min_scale, max_scale + 1e-6, coarse_step),
             np.array([1.0]),
         ])
     )
-    coarse_best = PartyApplyDetection(False, 0.0, 1.0, (0, 0, 0, 0), [])
-    coarse_best_marker: np.ndarray | None = None
+    if fallback_scales.size == 0:
+        return native_best
 
-    for marker_gray in marker_grays:
-        cand = _scan_scales(coarse, img_gray, marker_gray, score_threshold, max_rows, H, W)
-        if (
-            (cand.found and not coarse_best.found)
-            or (cand.found == coarse_best.found and cand.score > coarse_best.score)
-        ):
-            coarse_best = cand
-            coarse_best_marker = marker_gray
-        if cand.score >= 0.97:
-            break
+    idx = int(getattr(detect_party_apply, "_fallback_scale_idx", 0)) % int(fallback_scales.size)
+    batch_indices = [(idx + j) % int(fallback_scales.size) for j in range(PA_FALLBACK_SCALES_PER_FRAME)]
+    setattr(
+        detect_party_apply,
+        "_fallback_scale_idx",
+        (idx + PA_FALLBACK_SCALES_PER_FRAME) % int(fallback_scales.size),
+    )
 
-    result = coarse_best
-    if coarse_best.score > 0 and coarse_best_marker is not None and coarse_best.score < 0.97:
-        fine_lo = max(min_scale, coarse_best.scale - coarse_step)
-        fine_hi = min(max_scale, coarse_best.scale + coarse_step)
+    fallback_best = native_best
+    fallback_best_marker: np.ndarray | None = None
+    for scale_idx in batch_indices:
+        one_scale = [float(fallback_scales[scale_idx])]
+        for marker_gray in marker_grays:
+            cand = _scan_scales(one_scale, img_gray, marker_gray, score_threshold, max_rows, H, W)
+            if (
+                (cand.found and not fallback_best.found)
+                or (cand.found == fallback_best.found and cand.score > fallback_best.score)
+            ):
+                fallback_best = cand
+                fallback_best_marker = marker_gray
+
+    # If the coarse incremental pass actually found a candidate, refine just
+    # around that scale. This is the only extra work we allow in this frame.
+    if fallback_best.found and fallback_best_marker is not None:
+        base = _marker_base_scale(fallback_best_marker)
+        center = fallback_best.scale / base
+        fine_lo = max(min_scale, center - coarse_step)
+        fine_hi = min(max_scale, center + coarse_step)
         fine = np.arange(fine_lo, fine_hi + 1e-6, scale_step)
-        fine_best = _scan_scales(fine, img_gray, coarse_best_marker, score_threshold, max_rows, H, W)
+        fine_best = _scan_scales(fine, img_gray, fallback_best_marker, score_threshold, max_rows, H, W)
+        if fine_best.score >= fallback_best.score:
+            return fine_best
 
-        if fine_best.found and not coarse_best.found:
-            result = fine_best
-        elif coarse_best.found and not fine_best.found:
-            result = coarse_best
-        else:
-            result = fine_best if fine_best.score >= coarse_best.score else coarse_best
-
-    # Mark the fallback sweep timestamp after it finishes, not before it starts.
-    # The sweep itself can take several seconds; setting this before the sweep
-    # makes the next frame think the interval already elapsed.
-    setattr(detect_party_apply, "_last_full_cold_sweep_t", time.perf_counter())
-    return result
+    return fallback_best
 
 
 def _scan_scales(
