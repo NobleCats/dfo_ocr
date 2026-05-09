@@ -1,0 +1,41 @@
+# Build / packaging output
+build/
+dist/
+release_dist/
+build_secure/
+
+# PyInstaller specs that aren't the canonical release spec.
+# tools/release.spec is the intentional one and stays tracked.
+*.spec
+!tools/release.spec
+
+# Python bytecode and caches
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Cython / native extension build leftovers
+# (These appear in the repo root or build_secure/ when Cython compiles in-place.)
+*.pyd
+*.c
+*.obj
+*.exp
+*.lib
+!resources/**/*.c
+
+# Runtime artifacts
+logs/
+scratch/
+lastCapture/
+samples/last_frame*.png
+
+# Editor / IDE
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
+Thumbs.db
