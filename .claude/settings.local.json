@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"from PIL import Image; im = Image.open\\('samples/raid_test_09.png'\\); print\\(im.size\\)\")",
+      "Bash(python -c ' *)",
+      "Bash(python src/detect.py samples/raid_test_09.png)",
+      "Bash(python src/detect.py samples/raid_test_08.png)"
+    ]
+  }
+}

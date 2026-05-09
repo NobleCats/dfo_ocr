@@ -1,0 +1,168 @@
+01:49:13.849 INFO LiveDemo init  ui_scale=1.000  interval=250ms  monitor=None  window_title='Dungeon Fighter Online'  log_dir=C:\Users\Noble\AppData\Local\DFOGANG_RaidHelper
+01:49:16.151 DEBUG party_apply frame  cap=51  det=1997  total=2053ms  found=False  score=0.45  scale=1.30  rows=0
+01:49:17.020 INFO PaddleOCR reader initialized (PP-OCRv5)
+01:49:18.299 DEBUG party_apply frame  cap=30  det=1898  total=1928ms  found=False  score=0.45  scale=1.30  rows=0
+01:49:20.234 DEBUG party_apply frame  cap=27  det=1840  total=1867ms  found=False  score=0.45  scale=1.30  rows=0
+01:49:22.251 DEBUG party_apply frame  cap=30  det=1855  total=1885ms  found=False  score=0.45  scale=1.30  rows=0
+01:49:24.256 DEBUG party_apply frame  cap=27  det=1865  total=1893ms  found=False  score=0.45  scale=1.30  rows=0
+01:49:26.287 DEBUG party_apply frame  cap=31  det=1891  total=1923ms  found=False  score=0.45  scale=1.30  rows=0
+01:49:28.229 DEBUG party_apply frame  cap=32  det=1831  total=1863ms  found=False  score=0.45  scale=1.30  rows=0
+01:49:30.187 DEBUG party_apply frame  cap=36  det=1780  total=1816ms  found=False  score=0.45  scale=1.30  rows=0
+01:49:32.169 DEBUG party_apply frame  cap=30  det=1767  total=1797ms  found=False  score=0.45  scale=1.30  rows=0
+01:49:34.174 DEBUG party_apply frame  cap=26  det=1786  total=1813ms  found=False  score=0.45  scale=1.30  rows=0
+01:49:36.218 DEBUG party_apply frame  cap=37  det=1815  total=1853ms  found=False  score=0.45  scale=1.30  rows=0
+01:49:38.221 DEBUG party_apply frame  cap=36  det=1820  total=1857ms  found=False  score=0.45  scale=1.30  rows=0
+01:49:40.178 DEBUG party_apply frame  cap=25  det=1788  total=1813ms  found=False  score=0.45  scale=1.30  rows=0
+01:49:42.173 DEBUG party_apply frame  cap=23  det=1779  total=1802ms  found=False  score=0.45  scale=1.30  rows=0
+01:49:44.185 DEBUG party_apply frame  cap=25  det=1795  total=1820ms  found=False  score=0.45  scale=1.30  rows=0
+01:49:46.219 DEBUG party_apply frame  cap=29  det=1825  total=1854ms  found=False  score=0.45  scale=1.30  rows=0
+01:49:48.136 DEBUG party_apply frame  cap=26  det=1740  total=1766ms  found=False  score=0.45  scale=1.30  rows=0
+01:49:49.746 DEBUG party_apply frame  cap=29  det=1352  total=1382ms  found=False  score=0.28  scale=0.60  rows=0
+01:49:51.594 DEBUG party_apply frame  cap=27  det=1697  total=1724ms  found=False  score=0.37  scale=1.30  rows=0
+01:49:53.366 DEBUG party_apply frame  cap=25  det=1726  total=1751ms  found=False  score=0.37  scale=1.30  rows=0
+01:49:55.395 INFO loading templates for detected scale 0.700 (key 0.70)
+01:49:55.462 INFO loading templates for detected scale 0.500 (key 0.50)
+01:49:59.076 INFO row 0  fame= 73082 (raw='73,082' conf=1.00)  class='Dark Templa' (raw='Neo: Dark Templa' conf=1.00)
+01:49:59.077 INFO row 1  fame= 79245 (raw='79,245' conf=1.00)  class='Monk' (raw='DNeo: Monk' conf=1.00)
+01:49:59.077 INFO row 2  fame= 32082 (raw='32,082' conf=1.00)  class='Blade Maste' (raw='Neo: Blade Maste' conf=1.00)
+01:49:59.077 DEBUG party_apply frame  cap=22  det=1755  total=5457ms  found=True  score=0.91  scale=1.00  rows=3
+01:49:59.077 INFO party_apply STATE lost -> found after 45.23s
+01:49:59.298 INFO jobs index loaded: 271 total keys (60 'neo*', 211 base)
+01:49:59.301 INFO jobs index loaded: 271 total keys (60 'neo*', 211 base)
+01:49:59.305 INFO   neo* keys: neoasura, neoavenger, neobattlemage, neoberserker, neoblademaster, neoblitz, neobloodmage, neobrawler, neochaos, neochimera, neocreator, neocrusader, neodarkknight, neodarktemplar, neodemonslayer, neodimensionwalker, neodragonknight, neodragoon, neoelementalbomber, neoelementalist, neoelvenknight, neoenchantress, neoexorcist, neoghostblade, neoglacialmaster, neograppler, neohitman, neohunter, neoimpaler, neoinquisitor, neokunoichi, neolauncher, neolightbringer, neomechanic, neomistress, neomonk, neomuse, neonecromancer, neonenmaster, neoparamedic, neoranger, neorogue, neosecretagent, neoshadowdancer, neoshaman, neoskirmisher, neosoulbender, neospecialist, neospectre, neospitfire, neostriker, neosummoner, neoswiftmaster, neoswordmaster, neotraveler, neotroubleshooter, neovagabond, neovanguard, neovigilante, neowitch
+01:49:59.308 INFO   neo* keys: neoasura, neoavenger, neobattlemage, neoberserker, neoblademaster, neoblitz, neobloodmage, neobrawler, neochaos, neochimera, neocreator, neocrusader, neodarkknight, neodarktemplar, neodemonslayer, neodimensionwalker, neodragonknight, neodragoon, neoelementalbomber, neoelementalist, neoelvenknight, neoenchantress, neoexorcist, neoghostblade, neoglacialmaster, neograppler, neohitman, neohunter, neoimpaler, neoinquisitor, neokunoichi, neolauncher, neolightbringer, neomechanic, neomistress, neomonk, neomuse, neonecromancer, neonenmaster, neoparamedic, neoranger, neorogue, neosecretagent, neoshadowdancer, neoshaman, neoskirmisher, neosoulbender, neospecialist, neospectre, neospitfire, neostriker, neosummoner, neoswiftmaster, neoswordmaster, neotraveler, neotroubleshooter, neovagabond, neovanguard, neovigilante, neowitch
+01:49:59.309 INFO   sample base keys: abbadon, agent, aiolos, alcyone, archangel, archer, archmage, armada, ascendant, astarte, asura, avenger, awakening1, awakening2, battlemage, bellatrix, berserker, bigboss, blackmaiden, blackwidow
+01:49:59.311 INFO   sample base keys: abbadon, agent, aiolos, alcyone, archangel, archer, archmage, armada, ascendant, astarte, asura, avenger, awakening1, awakening2, battlemage, bellatrix, berserker, bigboss, blackmaiden, blackwidow
+01:49:59.501 DEBUG   search fame=[79145..79345] jobId=92d1c40f growId=53632e64 allGrow=False → 8 rows
+01:49:59.501 DEBUG   search fame=[72982..73182] jobId=08cf6465 growId=53632e64 allGrow=False → 8 rows
+01:49:59.503 INFO   reject Priest (M)/Neo: Monk ±100: 8 cands < 0.70 sim. top: NewReligion(fame=79245,sim=0.60), KamiNoSupai(fame=79331,sim=0.20), MONKEYDG4RP(fame=79161,sim=0.20)
+01:49:59.505 INFO   reject Slayer (F)/Neo: Dark Templar ±100: 8 cands < 0.70 sim. top: DameNisha(fame=73082,sim=0.67), Yehlemihas(fame=73060,sim=0.53), Nemesis6666(fame=73134,sim=0.40)
+01:49:59.506 INFO api  fame=79245 Priest (M)/Neo: Monk ±100  class='DNeo: Monk' name='hlewPelig'  → no name-confident match
+01:49:59.506 INFO api  fame=73082 Slayer (F)/Neo: Dark Templar ±100  class='Neo: Dark Templa' name='Damehlisl'  → no name-confident match
+01:50:00.058 DEBUG   search fame=[31982..32182] jobId=40132cbc growId=ba2ae359 allGrow=False → 6 rows
+01:50:00.063 INFO api  fame=32082 Slayer (M)/Neo: Blade Master ±100  class='Neo: Blade Maste' name='DualiesE.'  → matched 'DualiesEdge' (sim≥0.70)
+01:50:00.066 INFO        cand: name=DualiesEdge          fame=32017  server=cain     grow=Neo: Blade Master       sim=0.84
+01:50:00.069 INFO commit canonical='DualiesEdge' → dfogang
+01:50:01.135 INFO dfogang  'DualiesEdge' → score=201.0k buffer=False fame=38696
+01:50:02.782 INFO row 0  fame= 73082 (raw='73,082' conf=1.00)  class='Dark Templa' (raw='Neo: Dark Templa' conf=1.00)
+01:50:02.782 INFO row 1  fame= 79245 (raw='79,245' conf=1.00)  class='Monk' (raw='DNeo: Monk' conf=1.00)
+01:50:02.782 INFO row 2  fame= 32082 (raw='32,082' conf=1.00)  class='Blade Maste' (raw='Neo: Blade Maste' conf=1.00)
+01:50:02.784 DEBUG party_apply frame  cap=30  det=13  total=3665ms  found=True  score=0.91  scale=1.00  rows=3
+01:50:02.791 INFO   reject Slayer (F)/Neo: Dark Templar ±100: 8 cands < 0.70 sim. top: DameNisha(fame=73082,sim=0.67), Yehlemihas(fame=73060,sim=0.53), Nemesis6666(fame=73134,sim=0.40)
+01:50:02.791 INFO   reject Priest (M)/Neo: Monk ±100: 8 cands < 0.70 sim. top: NewReligion(fame=79245,sim=0.60), KamiNoSupai(fame=79331,sim=0.20), MONKEYDG4RP(fame=79161,sim=0.20)
+01:50:02.791 INFO api  fame=73082 Slayer (F)/Neo: Dark Templar ±100  class='Neo: Dark Templa' name='Damehlisl'  → no name-confident match
+01:50:02.791 INFO api  fame=79245 Priest (M)/Neo: Monk ±100  class='DNeo: Monk' name='hlewPelig'  → no name-confident match
+01:50:05.984 INFO row 0  fame= 73082 (raw='73,082' conf=1.00)  class='Dark Templa' (raw='Neo: Dark Templa' conf=1.00)
+01:50:05.984 INFO row 1  fame= 79245 (raw='79,245' conf=1.00)  class='Monk' (raw='DNeo: Monk' conf=1.00)
+01:50:05.984 INFO row 2  fame= 32082 (raw='32,082' conf=1.00)  class='Blade Maste' (raw='Neo: Blade Maste' conf=1.00)
+01:50:05.984 DEBUG party_apply frame  cap=22  det=13  total=3117ms  found=True  score=0.91  scale=1.00  rows=3
+01:50:05.989 INFO   reject Priest (M)/Neo: Monk ±100: 8 cands < 0.70 sim. top: NewReligion(fame=79245,sim=0.60), KamiNoSupai(fame=79331,sim=0.20), MONKEYDG4RP(fame=79161,sim=0.20)
+01:50:05.994 INFO   reject Slayer (F)/Neo: Dark Templar ±100: 8 cands < 0.70 sim. top: DameNisha(fame=73082,sim=0.67), Yehlemihas(fame=73060,sim=0.53), Nemesis6666(fame=73134,sim=0.40)
+01:50:05.994 INFO api  fame=79245 Priest (M)/Neo: Monk ±100  class='DNeo: Monk' name='hlewPelig'  → no name-confident match
+01:50:05.994 INFO api  fame=73082 Slayer (F)/Neo: Dark Templar ±100  class='Neo: Dark Templa' name='Damehlisl'  → no name-confident match
+01:50:09.569 INFO row 0  fame= 73082 (raw='73,082' conf=1.00)  class='Dark Templa' (raw='Neo: Dark Templa' conf=1.00)
+01:50:09.569 INFO row 1  fame= 79245 (raw='79,245' conf=1.00)  class='Monk' (raw='DNeo: Monk' conf=1.00)
+01:50:09.569 INFO row 2  fame= 32082 (raw='32,082' conf=1.00)  class='Blade Maste' (raw='Neo: Blade Maste' conf=1.00)
+01:50:09.569 DEBUG party_apply frame  cap=28  det=13  total=3455ms  found=True  score=0.91  scale=1.00  rows=3
+01:50:09.576 INFO   reject Slayer (F)/Neo: Dark Templar ±100: 8 cands < 0.70 sim. top: DameNisha(fame=73082,sim=0.67), Yehlemihas(fame=73060,sim=0.53), Nemesis6666(fame=73134,sim=0.40)
+01:50:09.576 INFO api  fame=79245 Priest (M)/Neo: Monk ±100  class='DNeo: Monk' name='NewPelig'  → matched 'NewReligion' (sim≥0.70)
+01:50:09.576 INFO api  fame=73082 Slayer (F)/Neo: Dark Templar ±100  class='Neo: Dark Templa' name='Damehlisl'  → no name-confident match
+01:50:09.576 INFO        cand: name=NewReligion          fame=79245  server=cain     grow=Neo: Monk               sim=0.74
+01:50:09.577 INFO commit canonical='NewReligion' → dfogang
+01:50:10.011 INFO dfogang  'NewReligion' → score=17.3M buffer=False fame=79245
+01:50:13.187 INFO row 0  fame= 73082 (raw='73,082' conf=1.00)  class='Dark Templa' (raw='Neo: Dark Templa' conf=1.00)
+01:50:13.188 INFO row 1  fame= 79245 (raw='79,245' conf=1.00)  class='Monk' (raw='DNeo: Monk' conf=1.00)
+01:50:13.188 INFO row 2  fame= 32082 (raw='32,082' conf=1.00)  class='Blade Maste' (raw='Neo: Blade Maste' conf=1.00)
+01:50:13.188 DEBUG party_apply frame  cap=31  det=14  total=3573ms  found=True  score=0.91  scale=1.00  rows=3
+01:50:13.196 INFO   reject Slayer (F)/Neo: Dark Templar ±100: 8 cands < 0.70 sim. top: DameNisha(fame=73082,sim=0.67), Yehlemihas(fame=73060,sim=0.53), Nemesis6666(fame=73134,sim=0.40)
+01:50:13.196 INFO   reject Priest (M)/Neo: Monk ±100: 8 cands < 0.70 sim. top: NewReligion(fame=79245,sim=0.60), KamiNoSupai(fame=79331,sim=0.20), MONKEYDG4RP(fame=79161,sim=0.20)
+01:50:13.198 INFO api  fame=73082 Slayer (F)/Neo: Dark Templar ±100  class='Neo: Dark Templa' name='Damehlisl'  → no name-confident match
+01:50:13.198 INFO api  fame=79245 Priest (M)/Neo: Monk ±100  class='DNeo: Monk' name='hlewPelig'  → no name-confident match
+01:50:16.965 INFO row 0  fame= 73082 (raw='73,082' conf=1.00)  class='Dark Templa' (raw='Neo: Dark Templa' conf=1.00)
+01:50:16.965 INFO row 1  fame= 79245 (raw='79,245' conf=1.00)  class='Monk' (raw='DNeo: Monk' conf=1.00)
+01:50:16.965 INFO row 2  fame= 32082 (raw='32,082' conf=1.00)  class='Blade Maste' (raw='Neo: Blade Maste' conf=1.00)
+01:50:16.965 DEBUG party_apply frame  cap=28  det=13  total=3602ms  found=True  score=0.91  scale=1.00  rows=3
+01:50:16.973 INFO   reject Slayer (F)/Neo: Dark Templar ±100: 8 cands < 0.70 sim. top: DameNisha(fame=73082,sim=0.67), Yehlemihas(fame=73060,sim=0.53), Nemesis6666(fame=73134,sim=0.40)
+01:50:16.973 INFO   reject Priest (M)/Neo: Monk ±100: 8 cands < 0.70 sim. top: NewReligion(fame=79245,sim=0.60), KamiNoSupai(fame=79331,sim=0.20), MONKEYDG4RP(fame=79161,sim=0.20)
+01:50:16.974 INFO api  fame=73082 Slayer (F)/Neo: Dark Templar ±100  class='Neo: Dark Templa' name='Damehlisl'  → no name-confident match
+01:50:16.974 INFO api  fame=79245 Priest (M)/Neo: Monk ±100  class='DNeo: Monk' name='hlewPelig'  → no name-confident match
+01:50:20.273 INFO row 0  fame= 73082 (raw='73,082' conf=1.00)  class='Dark Templa' (raw='Neo: Dark Templa' conf=1.00)
+01:50:20.274 INFO row 1  fame= 79245 (raw='79,245' conf=1.00)  class='Monk' (raw='DNeo: Monk' conf=1.00)
+01:50:20.274 INFO row 2  fame= 32082 (raw='32,082' conf=1.00)  class='Blade Maste' (raw='Neo: Blade Maste' conf=1.00)
+01:50:20.274 DEBUG party_apply frame  cap=28  det=14  total=3153ms  found=True  score=0.91  scale=1.00  rows=3
+01:50:20.281 INFO   reject Slayer (F)/Neo: Dark Templar ±100: 8 cands < 0.70 sim. top: DameNisha(fame=73082,sim=0.67), Yehlemihas(fame=73060,sim=0.53), Nemesis6666(fame=73134,sim=0.40)
+01:50:20.281 INFO   reject Priest (M)/Neo: Monk ±100: 8 cands < 0.70 sim. top: NewReligion(fame=79245,sim=0.60), KamiNoSupai(fame=79331,sim=0.20), MONKEYDG4RP(fame=79161,sim=0.20)
+01:50:20.281 INFO api  fame=73082 Slayer (F)/Neo: Dark Templar ±100  class='Neo: Dark Templa' name='Damehlisl'  → no name-confident match
+01:50:20.282 INFO api  fame=79245 Priest (M)/Neo: Monk ±100  class='DNeo: Monk' name='hlewPelig'  → no name-confident match
+01:50:22.148 INFO hint lost — falling back to cold scan next frame
+01:50:22.150 DEBUG party_apply frame  cap=30  det=1757  total=1787ms  found=False  score=0.32  scale=0.80  rows=0
+01:50:22.150 INFO party_apply STATE found -> lost after 23.07s
+01:50:25.944 INFO row 0  fame= 73082 (raw='73,082' conf=1.00)  class='Dark Templa' (raw='Neo: Dark Templa' conf=1.00)
+01:50:25.944 INFO row 1  fame= 79245 (raw='79,245' conf=1.00)  class='Monk' (raw='DNeo: Monk' conf=1.00)
+01:50:25.944 INFO row 2  fame= 32082 (raw='32,082' conf=1.00)  class='Blade Maste' (raw='Neo: Blade Maste' conf=1.00)
+01:50:25.944 DEBUG party_apply frame  cap=26  det=666  total=3575ms  found=True  score=0.91  scale=1.00  rows=3
+01:50:25.945 INFO party_apply STATE lost -> found after 3.79s
+01:50:25.951 INFO   reject Slayer (F)/Neo: Dark Templar ±100: 8 cands < 0.70 sim. top: DameNisha(fame=73082,sim=0.67), Yehlemihas(fame=73060,sim=0.53), Nemesis6666(fame=73134,sim=0.40)
+01:50:25.951 INFO   reject Priest (M)/Neo: Monk ±100: 8 cands < 0.70 sim. top: NewReligion(fame=79245,sim=0.60), KamiNoSupai(fame=79331,sim=0.20), MONKEYDG4RP(fame=79161,sim=0.20)
+01:50:25.951 INFO api  fame=73082 Slayer (F)/Neo: Dark Templar ±100  class='Neo: Dark Templa' name='Damehlisl'  → no name-confident match
+01:50:25.951 INFO api  fame=79245 Priest (M)/Neo: Monk ±100  class='DNeo: Monk' name='hlewPelig'  → no name-confident match
+01:50:28.894 INFO row 0  fame= 73082 (raw='73,082' conf=1.00)  class='Dark Templa' (raw='Neo: Dark Templa' conf=1.00)
+01:50:28.896 INFO row 1  fame= 79245 (raw='79,245' conf=1.00)  class='Monk' (raw='DNeo: Monk' conf=1.00)
+01:50:28.896 INFO row 2  fame= 32082 (raw='32,082' conf=1.00)  class='Blade Maste' (raw='Neo: Blade Maste' conf=1.00)
+01:50:28.896 DEBUG party_apply frame  cap=27  det=14  total=2780ms  found=True  score=0.91  scale=1.00  rows=3
+01:50:28.901 INFO   reject Slayer (F)/Neo: Dark Templar ±100: 8 cands < 0.70 sim. top: DameNisha(fame=73082,sim=0.67), Yehlemihas(fame=73060,sim=0.53), Nemesis6666(fame=73134,sim=0.40)
+01:50:28.901 INFO   reject Priest (M)/Neo: Monk ±100: 8 cands < 0.70 sim. top: NewReligion(fame=79245,sim=0.60), KamiNoSupai(fame=79331,sim=0.20), MONKEYDG4RP(fame=79161,sim=0.20)
+01:50:28.903 INFO api  fame=73082 Slayer (F)/Neo: Dark Templar ±100  class='Neo: Dark Templa' name='Damehlisl'  → no name-confident match
+01:50:28.903 INFO api  fame=79245 Priest (M)/Neo: Monk ±100  class='DNeo: Monk' name='hlewPelig'  → no name-confident match
+01:50:31.943 INFO row 0  fame= 73082 (raw='73,082' conf=1.00)  class='Dark Templa' (raw='Neo: Dark Templa' conf=1.00)
+01:50:31.943 INFO row 1  fame= 79245 (raw='79,245' conf=1.00)  class='Monk' (raw='DNeo: Monk' conf=1.00)
+01:50:31.944 INFO row 2  fame= 32082 (raw='32,082' conf=1.00)  class='Blade Maste' (raw='Neo: Blade Maste' conf=1.00)
+01:50:31.944 DEBUG party_apply frame  cap=26  det=13  total=2816ms  found=True  score=0.91  scale=1.00  rows=3
+01:50:31.951 INFO   reject Slayer (F)/Neo: Dark Templar ±100: 8 cands < 0.70 sim. top: DameNisha(fame=73082,sim=0.67), Yehlemihas(fame=73060,sim=0.53), Nemesis6666(fame=73134,sim=0.40)
+01:50:31.951 INFO api  fame=73082 Slayer (F)/Neo: Dark Templar ±100  class='Neo: Dark Templa' name='Damehlisl'  → no name-confident match
+01:50:35.438 INFO row 0  fame= 73082 (raw='73,082' conf=1.00)  class='Dark Templa' (raw='Neo: Dark Templa' conf=1.00)
+01:50:35.438 INFO row 1  fame= 79245 (raw='79,245' conf=1.00)  class='Monk' (raw='DNeo: Monk' conf=1.00)
+01:50:35.438 INFO row 2  fame= 32082 (raw='32,082' conf=1.00)  class='Blade Maste' (raw='Neo: Blade Maste' conf=1.00)
+01:50:35.440 DEBUG party_apply frame  cap=26  det=13  total=3325ms  found=True  score=0.91  scale=1.00  rows=3
+01:50:35.446 INFO   reject Slayer (F)/Neo: Dark Templar ±100: 8 cands < 0.70 sim. top: DameNisha(fame=73082,sim=0.67), Yehlemihas(fame=73060,sim=0.53), Nemesis6666(fame=73134,sim=0.40)
+01:50:35.446 INFO   reject Priest (M)/Neo: Monk ±100: 8 cands < 0.70 sim. top: NewReligion(fame=79245,sim=0.60), KamiNoSupai(fame=79331,sim=0.20), MONKEYDG4RP(fame=79161,sim=0.20)
+01:50:35.447 INFO api  fame=73082 Slayer (F)/Neo: Dark Templar ±100  class='Neo: Dark Templa' name='Damehlisl'  → no name-confident match
+01:50:35.447 INFO api  fame=79245 Priest (M)/Neo: Monk ±100  class='DNeo: Monk' name='hlewPelig'  → no name-confident match
+01:50:38.793 INFO row 0  fame= 73082 (raw='73,082' conf=1.00)  class='Dark Templa' (raw='Neo: Dark Templa' conf=1.00)
+01:50:38.793 INFO row 1  fame= 79245 (raw='79,245' conf=1.00)  class='Monk' (raw='DNeo: Monk' conf=1.00)
+01:50:38.794 INFO row 2  fame= 32082 (raw='32,082' conf=1.00)  class='Blade Maste' (raw='Neo: Blade Maste' conf=1.00)
+01:50:38.794 DEBUG party_apply frame  cap=24  det=13  total=3174ms  found=True  score=0.91  scale=1.00  rows=3
+01:50:38.801 INFO   reject Slayer (F)/Neo: Dark Templar ±100: 8 cands < 0.70 sim. top: DameNisha(fame=73082,sim=0.67), Yehlemihas(fame=73060,sim=0.53), Nemesis6666(fame=73134,sim=0.40)
+01:50:38.801 INFO api  fame=73082 Slayer (F)/Neo: Dark Templar ±100  class='Neo: Dark Templa' name='Damehlisl'  → no name-confident match
+01:50:42.047 INFO row 0  fame= 73082 (raw='73,082' conf=1.00)  class='Dark Templa' (raw='Neo: Dark Templa' conf=1.00)
+01:50:42.049 INFO row 1  fame= 79245 (raw='79,245' conf=1.00)  class='Monk' (raw='DNeo: Monk' conf=1.00)
+01:50:42.049 INFO row 2  fame= 32082 (raw='32,082' conf=1.00)  class='Blade Maste' (raw='Neo: Blade Maste' conf=1.00)
+01:50:42.049 DEBUG party_apply frame  cap=30  det=14  total=3184ms  found=True  score=0.91  scale=1.00  rows=3
+01:50:42.056 INFO   reject Slayer (F)/Neo: Dark Templar ±100: 8 cands < 0.70 sim. top: DameNisha(fame=73082,sim=0.67), Yehlemihas(fame=73060,sim=0.53), Nemesis6666(fame=73134,sim=0.40)
+01:50:42.056 INFO   reject Priest (M)/Neo: Monk ±100: 8 cands < 0.70 sim. top: NewReligion(fame=79245,sim=0.60), KamiNoSupai(fame=79331,sim=0.20), MONKEYDG4RP(fame=79161,sim=0.20)
+01:50:42.057 INFO api  fame=73082 Slayer (F)/Neo: Dark Templar ±100  class='Neo: Dark Templa' name='Damehlisl'  → no name-confident match
+01:50:42.057 INFO api  fame=79245 Priest (M)/Neo: Monk ±100  class='DNeo: Monk' name='hlewPelig'  → no name-confident match
+01:50:45.540 INFO row 0  fame= 73082 (raw='73,082' conf=1.00)  class='Dark Templa' (raw='Neo: Dark Templa' conf=1.00)
+01:50:45.541 INFO row 1  fame= 79245 (raw='79,245' conf=1.00)  class='Monk' (raw='DNeo: Monk' conf=1.00)
+01:50:45.541 INFO row 2  fame= 32082 (raw='32,082' conf=1.00)  class='Blade Maste' (raw='Neo: Blade Maste' conf=1.00)
+01:50:45.541 DEBUG party_apply frame  cap=30  det=14  total=3426ms  found=True  score=0.91  scale=1.00  rows=3
+01:50:45.547 INFO   reject Slayer (F)/Neo: Dark Templar ±100: 8 cands < 0.70 sim. top: DameNisha(fame=73082,sim=0.67), Yehlemihas(fame=73060,sim=0.53), Nemesis6666(fame=73134,sim=0.40)
+01:50:45.547 INFO api  fame=73082 Slayer (F)/Neo: Dark Templar ±100  class='Neo: Dark Templa' name='Damehlisl'  → no name-confident match
+01:50:48.957 INFO row 0  fame= 73082 (raw='73,082' conf=1.00)  class='Dark Templa' (raw='Neo: Dark Templa' conf=0.98)
+01:50:48.957 INFO row 1  fame= 79245 (raw='79,245' conf=1.00)  class='Monk' (raw='DNeo: Monk' conf=1.00)
+01:50:48.957 INFO row 2  fame= 32082 (raw='32,082' conf=1.00)  class='Blade Maste' (raw='Neo: Blade Maste' conf=1.00)
+01:50:48.957 DEBUG party_apply frame  cap=25  det=13  total=3343ms  found=True  score=0.91  scale=1.00  rows=3
+01:50:48.965 INFO   reject Slayer (F)/Neo: Dark Templar ±100: 8 cands < 0.70 sim. top: DameNisha(fame=73082,sim=0.67), Yehlemihas(fame=73060,sim=0.53), Nemesis6666(fame=73134,sim=0.40)
+01:50:48.965 INFO   reject Priest (M)/Neo: Monk ±100: 8 cands < 0.70 sim. top: NewReligion(fame=79245,sim=0.60), KamiNoSupai(fame=79331,sim=0.20), MONKEYDG4RP(fame=79161,sim=0.20)
+01:50:48.965 INFO api  fame=73082 Slayer (F)/Neo: Dark Templar ±100  class='Neo: Dark Templa' name='Damehlisl'  → no name-confident match
+01:50:48.966 INFO api  fame=79245 Priest (M)/Neo: Monk ±100  class='DNeo: Monk' name='hlewPelig'  → no name-confident match
+01:50:52.079 INFO row 0  fame= 73082 (raw='73,082' conf=1.00)  class='Dark Templa' (raw='Neo: Dark Templa' conf=1.00)
+01:50:52.080 INFO row 1  fame= 79245 (raw='79,245' conf=1.00)  class='Monk' (raw='DNeo: Monk' conf=1.00)
+01:50:52.080 INFO row 2  fame= 32082 (raw='32,082' conf=1.00)  class='Blade Maste' (raw='Neo: Blade Maste' conf=1.00)
+01:50:52.080 DEBUG party_apply frame  cap=24  det=14  total=2963ms  found=True  score=0.91  scale=1.00  rows=3
+01:50:52.086 INFO   reject Slayer (F)/Neo: Dark Templar ±100: 8 cands < 0.70 sim. top: DameNisha(fame=73082,sim=0.67), Yehlemihas(fame=73060,sim=0.53), Nemesis6666(fame=73134,sim=0.40)
+01:50:52.086 INFO   reject Priest (M)/Neo: Monk ±100: 8 cands < 0.70 sim. top: NewReligion(fame=79245,sim=0.60), KamiNoSupai(fame=79331,sim=0.20), MONKEYDG4RP(fame=79161,sim=0.20)
+01:50:52.088 INFO api  fame=73082 Slayer (F)/Neo: Dark Templar ±100  class='Neo: Dark Templa' name='Damehlisl'  → no name-confident match
+01:50:52.088 INFO api  fame=79245 Priest (M)/Neo: Monk ±100  class='DNeo: Monk' name='hlewPelig'  → no name-confident match
+01:50:54.465 INFO LiveDemo close requested
+01:50:54.468 DEBUG capture close (ignored): '_thread._local' object has no attribute 'bmp'
