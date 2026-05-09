@@ -80,9 +80,15 @@ def _detect_top_text_y(
 _logger = logging.getLogger("dfogang.party_apply")
 
 # Cold party-apply detection must be cheap. Native marker probes cover the
-# supported UI scales (0/50/69/100). The expensive all-scale sweep is fallback
-# only and is throttled while the window is closed.
+# available marker captures. All column_header_*pct.png files are loaded
+# dynamically so marker updates do not require code changes.
 PA_COLD_CANDIDATES_PER_FRAME = 6
+# Width-ladder fallback: instead of knowing the exact DFO UI Scale %, use
+# the real 0% and 100% header marker widths as min/max and resize the
+# 100% marker across that interval. The order is midpoint-first so unknown
+# intermediate scales are reached quickly without a blocking full sweep.
+PA_WIDTH_LADDER_STEP_PX = 6
+PA_WIDTH_LADDER_CANDIDATES_PER_FRAME = 10
 PA_ADAPTIVE_HOT_SCALE_MAX = 8
 PA_ADAPTIVE_HOT_SCALE_EPS = 0.015
 
@@ -197,10 +203,50 @@ def _marker_base_scale(marker_gray: np.ndarray) -> float:
         return 1.0
 
 
+def _marker_sort_key(path: Path) -> tuple[int, str]:
+    m = re.search(r"column_header_(\d+)pct\.png$", path.name)
+    if m:
+        return (int(m.group(1)), path.name)
+    return (10_000, path.name)
+
+
+def _available_marker_paths() -> list[Path]:
+    """Return all checked-in party-apply header marker captures.
+
+    The marker set is data-driven: any resources/markers/party_apply/
+    column_header_*pct.png file is loaded automatically. This lets us update or
+    add real crop images without changing this module every time.
+    """
+    marker_dir = _DEFAULT_MARKER_PATH.parent
+    seen: set[Path] = set()
+    paths: list[Path] = []
+
+    if _DEFAULT_MARKER_PATH.exists():
+        paths.append(_DEFAULT_MARKER_PATH)
+        seen.add(_DEFAULT_MARKER_PATH)
+
+    for p in sorted(marker_dir.glob("column_header_*pct.png"), key=_marker_sort_key):
+        if p not in seen:
+            paths.append(p)
+            seen.add(p)
+
+    # Backward compatibility for older installs where glob may not include
+    # optional markers for any reason.
+    for p in _OPTIONAL_MARKER_PATHS:
+        if p.exists() and p not in seen:
+            paths.append(p)
+            seen.add(p)
+
+    return paths
+
+
 def _load_markers() -> list[np.ndarray]:
     """Load every available party-apply header marker."""
-    paths = [_DEFAULT_MARKER_PATH]
-    paths.extend(p for p in _OPTIONAL_MARKER_PATHS if p.exists())
+    paths = _available_marker_paths()
+    if not paths:
+        raise FileNotFoundError(
+            f"No party-apply markers found under {_DEFAULT_MARKER_PATH.parent}"
+        )
     return [_load_marker(p) for p in paths]
 
 
@@ -293,10 +339,11 @@ def detect_party_apply(
 ) -> PartyApplyDetection:
     """Locate the party-apply window in ``image_rgb``.
 
-    v8n keeps v8m's false-positive controls and adds adaptive hot-scale caching.
-    UI Scale rarely changes during normal use. Once a non-native/intermediate
-    scale succeeds, subsequent cold/reopen scans probe that effective scale
-    before the rotating continuous fallback.
+    v8q keeps v8m/v8n's false-positive controls and adaptive hot-scale caching.
+    For arbitrary 1%-step UI Scale values, it does not try to map percent to
+    pixels. It uses real 0% and 100% marker widths as bounds, then resizes
+    the 100% marker across that width interval in a rotating midpoint-first
+    ladder.
     """
     img_gray = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2GRAY)
     marker_grays = (
@@ -359,17 +406,55 @@ def detect_party_apply(
         return b if b.score > a.score else a
 
     def _make_priority_effective_scales() -> tuple[float, ...]:
-        # Hand-tuned anchors first, then a dense continuous grid. This supports
-        # every DFO UI Scale value without needing a marker file for every 1%.
+        """Effective-scale ladder derived only from actual 0% and 100% widths.
+
+        We do not need the exact UI Scale % -> pixel formula. Any intermediate
+        UI Scale must have a header width between the real 0% and 100% marker
+        widths, so scan that width interval by resizing the 100% marker.
+        """
+        p0 = _DEFAULT_MARKER_PATH.parent / "column_header_0pct.png"
+        p100 = _DEFAULT_MARKER_PATH.parent / "column_header_100pct.png"
+
+        widths: list[int] = []
+        if p0.exists() and p100.exists():
+            try:
+                w0 = int(Image.open(p0).size[0])
+                w100 = int(Image.open(p100).size[0])
+                lo, hi = sorted((w0, w100))
+                step = max(2, int(PA_WIDTH_LADDER_STEP_PX))
+                widths = list(range(lo, hi + 1, step))
+                if widths[-1] != hi:
+                    widths.append(hi)
+            except Exception:
+                widths = []
+
+        if not widths:
+            # Fallback to the older broad grid when marker assets are missing.
+            widths = [int(round(REF_MARKER_SIZE[0] * x * 0.02)) for x in range(15, 101)]
+
+        def midpoint_order(vals: list[int]) -> list[int]:
+            out: list[int] = []
+            def rec(lo_i: int, hi_i: int) -> None:
+                if lo_i > hi_i:
+                    return
+                mid = (lo_i + hi_i) // 2
+                out.append(vals[mid])
+                rec(lo_i, mid - 1)
+                rec(mid + 1, hi_i)
+            rec(0, len(vals) - 1)
+            return out
+
+        ordered_widths = midpoint_order(widths)
         anchors = [
-            0.66, 1.00, 0.46, 0.57, 0.75, 0.88, 1.10, 1.28,
-            1.54, 1.65, 0.30, 0.36, 0.43, 0.49, 0.59, 0.61,
-            0.84, 1.40, 1.80, 2.00,
+            # Exact/common captures first. Native marker scan handles them too,
+            # but keeping them here helps after stale near_scale changes.
+            0.66, 1.00, 1.30, 0.88, 0.46, 0.57, 0.75, 1.10,
         ]
-        dense = [round(x * 0.02, 2) for x in range(15, 101)]  # 0.30..2.00
+
         seen: set[float] = set()
         out: list[float] = []
-        for v in anchors + dense:
+        for v in anchors + [w / float(REF_MARKER_SIZE[0]) for w in ordered_widths]:
+            v = round(float(v), 4)
             if min_scale * 0.65 <= v <= max_scale * 1.25 and v not in seen:
                 seen.add(v)
                 out.append(v)
@@ -379,6 +464,16 @@ def detect_party_apply(
         marker_gray = _best_marker_for_effective_scale(float(target))
         resize_scale = _resize_for_effective_scale(marker_gray, float(target))
         return _scan_pair(marker_gray, resize_scale)
+
+    def _scan_effective_from_100(target: float) -> PartyApplyDetection:
+        """Scan by resizing the actual 100% marker to the requested width scale."""
+        p100 = _DEFAULT_MARKER_PATH.parent / "column_header_100pct.png"
+        if p100.exists():
+            marker100 = cv2.cvtColor(_load_marker(p100), cv2.COLOR_RGB2GRAY)
+        else:
+            marker100 = _best_marker_for_effective_scale(float(target))
+        resize_scale = _resize_for_effective_scale(marker100, float(target))
+        return _scan_pair(marker100, resize_scale)
 
     # Always probe every available marker at its native size before using a
     # remembered scale. This keeps explicit 0/50/100 marker hits instant and
@@ -425,12 +520,16 @@ def detect_party_apply(
     setattr(
         detect_party_apply,
         "_cold_probe_idx",
-        (idx + PA_COLD_CANDIDATES_PER_FRAME) % len(priority_effective_scales),
+        (idx + max(PA_COLD_CANDIDATES_PER_FRAME, PA_WIDTH_LADDER_CANDIDATES_PER_FRAME)) % len(priority_effective_scales),
     )
 
-    for j in range(PA_COLD_CANDIDATES_PER_FRAME):
+    cold_count = max(PA_COLD_CANDIDATES_PER_FRAME, PA_WIDTH_LADDER_CANDIDATES_PER_FRAME)
+    for j in range(cold_count):
         target = float(priority_effective_scales[(idx + j) % len(priority_effective_scales)])
-        cand = _scan_effective(target)
+        # Width-ladder fallback intentionally uses the 100% marker resized down
+        # through the 0%..100% width range. This avoids depending on a possibly
+        # wrong UI Scale percent formula.
+        cand = _scan_effective_from_100(target)
         best = _better(best, cand)
         if cand.found and cand.score >= 0.90:
             return _return(cand)
