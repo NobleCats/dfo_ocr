@@ -323,7 +323,6 @@ def detect_party_apply(
     last_full = float(getattr(detect_party_apply, "_last_full_cold_sweep_t", 0.0))
     if (now - last_full) < PA_FULL_COLD_SWEEP_INTERVAL_S:
         return native_best
-    setattr(detect_party_apply, "_last_full_cold_sweep_t", now)
 
     coarse = np.unique(
         np.concatenate([
@@ -345,21 +344,25 @@ def detect_party_apply(
         if cand.score >= 0.97:
             break
 
-    if coarse_best.score == 0 or coarse_best_marker is None:
-        return coarse_best
-    if coarse_best.score >= 0.97:
-        return coarse_best
+    result = coarse_best
+    if coarse_best.score > 0 and coarse_best_marker is not None and coarse_best.score < 0.97:
+        fine_lo = max(min_scale, coarse_best.scale - coarse_step)
+        fine_hi = min(max_scale, coarse_best.scale + coarse_step)
+        fine = np.arange(fine_lo, fine_hi + 1e-6, scale_step)
+        fine_best = _scan_scales(fine, img_gray, coarse_best_marker, score_threshold, max_rows, H, W)
 
-    fine_lo = max(min_scale, coarse_best.scale - coarse_step)
-    fine_hi = min(max_scale, coarse_best.scale + coarse_step)
-    fine = np.arange(fine_lo, fine_hi + 1e-6, scale_step)
-    fine_best = _scan_scales(fine, img_gray, coarse_best_marker, score_threshold, max_rows, H, W)
+        if fine_best.found and not coarse_best.found:
+            result = fine_best
+        elif coarse_best.found and not fine_best.found:
+            result = coarse_best
+        else:
+            result = fine_best if fine_best.score >= coarse_best.score else coarse_best
 
-    if fine_best.found and not coarse_best.found:
-        return fine_best
-    if coarse_best.found and not fine_best.found:
-        return coarse_best
-    return fine_best if fine_best.score >= coarse_best.score else coarse_best
+    # Mark the fallback sweep timestamp after it finishes, not before it starts.
+    # The sweep itself can take several seconds; setting this before the sweep
+    # makes the next frame think the interval already elapsed.
+    setattr(detect_party_apply, "_last_full_cold_sweep_t", time.perf_counter())
+    return result
 
 
 def _scan_scales(
