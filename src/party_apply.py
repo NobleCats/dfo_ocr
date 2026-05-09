@@ -118,11 +118,18 @@ TEMPLATE_SCALE_FOR_PARTY_APPLY_DIGITS = 0.5
 # icon ends and the actual digit text begins. The icon is anti-aliased into
 # the digit area; cropping too tight bleeds the icon's right wing into the
 # first OCR'd digit (we saw a phantom leading '8' in samples).
-FAME_STAR_ICON_RIGHT_PAD = 34
+FAME_STAR_ICON_RIGHT_PAD = 22
 
 # Same for the B/D awakening-tier badge sitting before "Neo:" on the class
 # line.
 CLASS_BADGE_RIGHT_PAD = 30
+
+# OCR fame crops need extra horizontal breathing room. Template-based digit
+# matching was too brittle for party-apply fame, so fame stays OCR-first; these
+# pads avoid clipping the leftmost digit at 100% UI scale while giving OCR
+# enough right-side context for comma-separated values.
+FAME_DIGIT_LEFT_BREATHING = 6
+FAME_DIGIT_RIGHT_BREATHING = 42
 
 
 # Threshold for considering a row "real" (drops empty placeholder rows).
@@ -224,13 +231,68 @@ def _load_markers() -> list[np.ndarray]:
     return [_load_marker(p) for p in paths]
 
 
+
+def _grid_support_score(img_gray: np.ndarray, marker_xy: tuple[int, int],
+                        marker_w: int, marker_h: int, scale: float,
+                        max_rows: int) -> float:
+    """Cheap structural validation for a candidate request-list header.
+
+    We deliberately avoid OCR here. A real party-apply table has repeated
+    horizontal row separators immediately below the column header. False
+    template hits on other UI panels can score moderately well, but they do
+    not usually have the same dense grid pattern at the expected pitch.
+    """
+    H, W = img_gray.shape[:2]
+    mx, my = marker_xy
+    pitch = max(8, int(round(REF_ROW_PITCH * scale)))
+    y0 = max(0, my + marker_h)
+    y1 = min(H, y0 + pitch * min(max_rows, 6))
+    x0 = max(0, mx)
+    x1 = min(W, mx + marker_w)
+    if y1 - y0 < pitch or x1 - x0 < 80:
+        return 0.0
+    roi = img_gray[y0:y1, x0:x1]
+    # Horizontal line/edge energy, normalized against local texture.
+    dy = np.abs(np.diff(roi.astype(np.int16), axis=0)).mean(axis=1)
+    if dy.size == 0:
+        return 0.0
+    bg = float(np.median(dy)) + 1e-6
+    # Count strong edges near expected row boundaries and return the strongest
+    # normalized support. This is intentionally permissive; marker score still
+    # remains the primary signal.
+    supports: list[float] = []
+    for i in range(min(max_rows, 5)):
+        expected = int(round((REF_FIRST_ROW_TOP_DY + i * REF_ROW_PITCH) * scale)) - marker_h
+        lo = max(0, expected - max(3, pitch // 5))
+        hi = min(len(dy), expected + max(4, pitch // 5))
+        if hi <= lo:
+            continue
+        supports.append(float(dy[lo:hi].max() / bg))
+    if not supports:
+        return 0.0
+    return float(np.mean(sorted(supports, reverse=True)[:3]))
+
+
+def _candidate_found(marker_score: float, grid_score: float,
+                     score_threshold: float) -> bool:
+    """Decide whether a marker candidate is usable.
+
+    High marker scores pass directly. Lower scores are accepted only when the
+    table grid below the header looks like the party-apply request list. This
+    lets 0% UI scale recover with a lower template score without accepting
+    random header-like text elsewhere on the screen.
+    """
+    if marker_score >= score_threshold:
+        return True
+    return marker_score >= 0.50 and grid_score >= 2.0
+
 def detect_party_apply(image_rgb: np.ndarray,
                        *,
                        min_scale: float = 0.45,
                        max_scale: float = 2.0,
                        scale_step: float = 0.02,
                        coarse_step: float = 0.1,
-                       score_threshold: float = 0.60,
+                       score_threshold: float = 0.54,
                        marker: np.ndarray | None = None,
                        hint: PartyApplyDetection | None = None,
                        # Wide enough to absorb a one-frame in-game window
@@ -285,7 +347,8 @@ def detect_party_apply(image_rgb: np.ndarray,
             scales = np.arange(lo, hi + 1e-6, scale_step)
             cand = _scan_scales(scales, img_gray, marker_gray,
                                 score_threshold, max_rows, H, W)
-            if cand.score > best.score:
+            if ((cand.found and not best.found) or
+                    (cand.found == best.found and cand.score > best.score)):
                 best = cand
         return best
 
@@ -298,7 +361,8 @@ def detect_party_apply(image_rgb: np.ndarray,
     for marker_gray in marker_grays:
         cand = _scan_scales(coarse, img_gray, marker_gray, score_threshold,
                             max_rows, H, W)
-        if cand.score > coarse_best.score:
+        if ((cand.found and not coarse_best.found) or
+                (cand.found == coarse_best.found and cand.score > coarse_best.score)):
             coarse_best = cand
     if coarse_best.score == 0:
         return coarse_best
@@ -309,8 +373,13 @@ def detect_party_apply(image_rgb: np.ndarray,
     for marker_gray in marker_grays:
         cand = _scan_scales(fine, img_gray, marker_gray, score_threshold,
                             max_rows, H, W)
-        if cand.score > fine_best.score:
+        if ((cand.found and not fine_best.found) or
+                (cand.found == fine_best.found and cand.score > fine_best.score)):
             fine_best = cand
+    if fine_best.found and not coarse_best.found:
+        return fine_best
+    if coarse_best.found and not fine_best.found:
+        return coarse_best
     return fine_best if fine_best.score >= coarse_best.score else coarse_best
 
 
@@ -329,10 +398,15 @@ def _scan_scales(scales, img_gray, marker_gray, score_threshold,
                              interpolation=cv2.INTER_AREA if scale < 1 else cv2.INTER_CUBIC)
         result = cv2.matchTemplate(img_gray, resized, cv2.TM_CCOEFF_NORMED)
         _, max_val, _, max_loc = cv2.minMaxLoc(result)
-        if max_val > best.score:
-            effective_scale = float(scale) * base_scale
-            best = _build_detection(effective_scale, max_val, max_loc, score_threshold,
-                                    new_w, new_h, max_rows, H)
+        effective_scale = float(scale) * base_scale
+        grid_score = _grid_support_score(img_gray, max_loc, new_w, new_h,
+                                         effective_scale, max_rows)
+        cand = _build_detection(effective_scale, max_val, max_loc,
+                               score_threshold, new_w, new_h, max_rows,
+                               H, grid_score)
+        if ((cand.found and not best.found) or
+                (cand.found == best.found and cand.score > best.score)):
+            best = cand
     return best
 
 
@@ -356,16 +430,20 @@ def _hint_lookup(img_gray, marker_gray, hint, radius, threshold, max_rows, H):
     roi = img_gray[y0:y1, x0:x1]
     result = cv2.matchTemplate(roi, resized, cv2.TM_CCOEFF_NORMED)
     _, max_val, _, max_loc = cv2.minMaxLoc(result)
-    if max_val < threshold:
+    abs_loc = (max_loc[0] + x0, max_loc[1] + y0)
+    grid_score = _grid_support_score(img_gray, abs_loc, new_w, new_h,
+                                     effective_scale, max_rows)
+    if not _candidate_found(float(max_val), grid_score, threshold):
         return None
     return _build_detection(
-        effective_scale, max_val, (max_loc[0] + x0, max_loc[1] + y0), threshold,
-        new_w, new_h, max_rows, H)
+        effective_scale, max_val, abs_loc, threshold,
+        new_w, new_h, max_rows, H, grid_score)
 
 
 def _build_detection(scale: float, score: float, marker_xy: tuple[int, int],
                      threshold: float, marker_w: int, marker_h: int,
-                     max_rows: int, image_h: int) -> PartyApplyDetection:
+                     max_rows: int, image_h: int,
+                     grid_score: float = 0.0) -> PartyApplyDetection:
     mx, my = marker_xy
     rows_top_y: list[int] = []
     for i in range(max_rows):
@@ -374,7 +452,7 @@ def _build_detection(scale: float, score: float, marker_xy: tuple[int, int],
             break
         rows_top_y.append(y)
     return PartyApplyDetection(
-        found=score >= threshold,
+        found=_candidate_found(float(score), float(grid_score), threshold),
         score=float(score),
         scale=float(scale),
         marker_xywh=(mx, my, marker_w, marker_h),
@@ -451,8 +529,10 @@ def recognize_party_apply(image_rgb: np.ndarray,
         class_x = (col(REF_CLASS_X[0]), col(REF_CLASS_X[1]))
 
         # Fame: digits only, skip past the leading star icon.
-        fame_x_dig = (fame_x[0] + int(round(FAME_STAR_ICON_RIGHT_PAD * s)),
-                      fame_x[1])
+        fame_x_dig = (
+            fame_x[0] + int(round((FAME_STAR_ICON_RIGHT_PAD - FAME_DIGIT_LEFT_BREATHING) * s)),
+            fame_x[1] + int(round(FAME_DIGIT_RIGHT_BREATHING * s)),
+        )
         fame_value, fame_text, fame_score = _read_fame(
             image_rgb, fame_x_dig, (top_y0, top_y1), digit_templates, s)
 
