@@ -12,8 +12,6 @@ from __future__ import annotations
 import logging
 import os
 
-DEFAULT_OCR_PROFILE = "mobile"
-DEFAULT_OCR_RECOGNITION_MODEL = "en_PP-OCRv5_mobile_rec"
 import re
 import sys as _sys
 import threading
@@ -38,10 +36,11 @@ _reader_lock = threading.Lock()
 _reader_failed = False
 
 # OCR profile:
-# - default/server: PaddleOCR default pipeline, currently server recognition model.
-# - mobile: lighter English/numeric recognizer for testing speed on DFO crops.
-# Override exact model with DFO_OCR_RECOGNITION_MODEL.
-_OCR_PROFILE = os.environ.get("DFO_OCR_PROFILE", DEFAULT_OCR_PROFILE).strip().lower()
+# - default/server (default): PaddleOCR PP-OCRv5 server recognizer — higher
+#   accuracy for mixed-case Korean-transliterated names like "NeNeSan".
+# - mobile: lighter English/numeric recognizer; opt-in via DFO_OCR_PROFILE=mobile.
+# Override exact model with DFO_OCR_RECOGNITION_MODEL env var.
+_OCR_PROFILE = os.environ.get("DFO_OCR_PROFILE", "").strip().lower()
 _OCR_RECOGNITION_MODEL = os.environ.get("DFO_OCR_RECOGNITION_MODEL", "").strip()
 
 _CACHE_CAP = 256
@@ -109,6 +108,7 @@ def _try_paddle():
         enable_mkldnn=False,
     )
 
+    # Explicit model override > mobile profile opt-in > server default.
     model_name = _OCR_RECOGNITION_MODEL
     if not model_name and _OCR_PROFILE == "mobile":
         model_name = "en_PP-OCRv5_mobile_rec"
@@ -120,13 +120,19 @@ def _try_paddle():
         attempts.append((model_name, kwargs))
     attempts.append(("default", base_kwargs))
 
+    active_profile = _OCR_PROFILE or "server"
+
     for label, kwargs in attempts:
         try:
             reader = PaddleOCR(**kwargs)
             if label == "default":
-                _logger.info("PaddleOCR reader initialized (PP-OCRv5 default profile=%s)", _OCR_PROFILE or "server")
+                _logger.info(
+                    "PaddleOCR reader initialized (PP-OCRv5 profile=%s rec_model=server_default)",
+                    active_profile)
             else:
-                _logger.info("PaddleOCR reader initialized (PP-OCRv5 rec_model=%s profile=%s)", label, _OCR_PROFILE)
+                _logger.info(
+                    "PaddleOCR reader initialized (PP-OCRv5 profile=%s rec_model=%s)",
+                    active_profile, label)
             return reader, "paddle"
         except Exception as exc:
             _logger.warning("PaddleOCR init failed for %s: %s", label, exc)
