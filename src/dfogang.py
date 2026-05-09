@@ -1,16 +1,20 @@
-"""dfogang.com score lookup client. Cache, dedup, retry, rate-limit included."""
+"""dfogang.com score lookup client.
 
+Cache, dedup, retry, rate-limit included.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import re
+import sys
 import threading
 import time
-import hashlib
-import sys
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 from typing import Optional
-import re
 
-
-_SENTINEL = object()   # distinguishes "never fetched" from a cached None
+_SENTINEL = object()  # distinguishes "never fetched" from a cached None
 
 
 def _safe_print(message: str) -> None:
@@ -25,8 +29,12 @@ def _safe_print(message: str) -> None:
 
 @dataclass(frozen=True)
 class ScoreInfo:
-    """A single character's lookup result. `score` is the formatted display
-    string ("92.1k", "1.2M", "—"). `is_buffer` decides overlay color."""
+    """A single character's lookup result.
+
+    `score` is the formatted display string ("92.12k", "8.46M", "—").
+    `is_buffer` decides overlay color.
+    """
+
     name: str
     score: str
     is_buffer: bool
@@ -44,15 +52,79 @@ class NeopleCharacter:
     job_grow_name: str = ""
 
 
-class _RateLimiter:
-    """
-    Token-bucket limiter: allows at most `rate` calls per second.
-    Callers block until a token is available.
+def _coerce_float(value: object) -> float | None:
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        text = value.strip().replace(",", "")
+        if not text:
+            return None
+        try:
+            return float(text)
+        except ValueError:
+            return None
+    return None
+
+
+def _format_compact_score(raw_score: float | int | None) -> str | None:
+    """Format a raw numeric dfogang score with two decimal places.
+
+    Examples:
+      8460000 -> "8.46M"
+      8460    -> "8.46k"
     """
 
+    value = _coerce_float(raw_score)
+    if value is None:
+        return None
+    if value >= 1_000_000:
+        return f"{value / 1_000_000:.2f}M"
+    if value >= 1_000:
+        return f"{value / 1_000:.2f}k"
+    return f"{value:.2f}"
+
+
+def _format_score_from_payload(data: dict, fallback: str = "—") -> str:
+    """Return a two-decimal display score from a dfogang API payload.
+
+    Prefer raw numeric fields when present, because score_display may already
+    be rounded to one decimal place by the backend, e.g. "8.5M" instead of the
+    more precise "8.46M".
+    """
+
+    for key in (
+        "score",
+        "raw_score",
+        "score_raw",
+        "score_value",
+        "total_score",
+        "dps_score",
+        "buff_score",
+        "damage_score",
+        "buffer_score",
+    ):
+        formatted = _format_compact_score(data.get(key))
+        if formatted is not None:
+            return formatted
+
+    display = data.get("score_display") or data.get("scoreDisplay") or fallback
+    if isinstance(display, str):
+        text = display.strip()
+        # If the backend eventually sends two decimals here, preserve them.
+        # If it sends one decimal only, we cannot reconstruct the missing digit
+        # without a raw numeric score field.
+        return text or fallback
+    return fallback
+
+
+class _RateLimiter:
+    """Token-bucket limiter: allows at most `rate` calls per second."""
+
     def __init__(self, rate: float):
-        self._rate = rate               # tokens per second
-        self._tokens = rate             # start full
+        self._rate = rate
+        self._tokens = rate
         self._last = time.monotonic()
         self._lock = threading.Lock()
 
@@ -71,18 +143,7 @@ class _RateLimiter:
 
 
 class DfogangClient:
-    """
-    Thread-safe client for dfogang.com character score lookups.
-
-    Parameters
-    ----------
-    ttl:          Positive-result cache TTL in seconds (default 300 = 5 min).
-    negative_ttl: Negative-result cache TTL in seconds (default 30).
-    max_rps:      Maximum requests per second (default 5).
-    demo:         If True, return deterministic fake scores instead of hitting
-                  the network. Useful for end-to-end testing before the API
-                  spec is wired up.
-    """
+    """Thread-safe client for dfogang.com character score lookups."""
 
     def __init__(
         self,
@@ -107,28 +168,16 @@ class DfogangClient:
         self._request_timeout = float(request_timeout_s)
         self._in_flight_timeout = float(in_flight_timeout_s)
 
-        # cache: name -> (ScoreInfo or None, fetched_at)
         self._cache: dict[str, tuple[Optional[ScoreInfo], float]] = {}
         self._cache_lock = threading.Lock()
         self._fame_cache: dict[int, tuple[list[NeopleCharacter], float]] = {}
-
-        # in-flight dedup: name -> (Event, started_at).
         self._in_flight: dict[str, tuple[threading.Event, float]] = {}
         self._in_flight_lock = threading.Lock()
-
         self._limiter = _RateLimiter(max_rps)
 
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
-
     def get_info(self, name: str) -> Optional[ScoreInfo]:
-        """Return ScoreInfo for *name*, or None if not registered. Blocking.
+        """Return ScoreInfo for *name*, or None if not registered."""
 
-        The OCR result is tried as-is first. If that misses, we retry a small
-        set of visual-confusable variants (`|` -> `l`, `}`/`+` -> `k`) so
-        ambiguous glyphs can still resolve through dfogang's canonical name.
-        """
         name = name.strip()
         if not name:
             return None
@@ -144,9 +193,6 @@ class DfogangClient:
             entry = self._in_flight.get(cache_key)
             if entry is not None:
                 ev, started_at = entry
-                # If the existing in-flight call has been running too long,
-                # treat it as abandoned and start fresh. This prevents one
-                # stuck request from blocking every subsequent caller.
                 if (time.monotonic() - started_at) > self._in_flight_timeout:
                     self._in_flight.pop(cache_key, None)
                     my_event = threading.Event()
@@ -170,18 +216,23 @@ class DfogangClient:
         finally:
             with self._in_flight_lock:
                 entry = self._in_flight.pop(cache_key, None)
-            if entry is not None:
-                entry[0].set()
+                if entry is not None:
+                    entry[0].set()
 
     def get_score(self, name: str) -> Optional[str]:
         """Backward-compatible: returns just the score string, or None."""
+
         info = self.get_info(name)
         return info.score if info is not None else None
 
     def get_many_info(self, names: list[str]) -> dict[str, Optional[ScoreInfo]]:
-        """Batch lookup names. Exact names are fetched with one POST request;
-        truncated or variant-needed misses fall back to individual lookup."""
-        clean_names = []
+        """Batch lookup names.
+
+        Exact names are fetched with one POST request; truncated or
+        variant-needed misses fall back to individual lookup.
+        """
+
+        clean_names: list[str] = []
         for name in names:
             n = name.strip()
             if n and n not in clean_names:
@@ -204,10 +255,6 @@ class DfogangClient:
                     out[name] = info
             else:
                 fetched: dict[str, Optional[ScoreInfo]] = {}
-
-                # First ask for the OCR names exactly as seen. This keeps the
-                # common case fast and prevents a large variant batch from
-                # timing out and wiping out otherwise-valid exact hits.
                 for i in range(0, len(missing_names), 20):
                     fetched.update(self._fetch_many_exact(missing_names[i:i + 20]))
 
@@ -233,24 +280,21 @@ class DfogangClient:
                     info = next((fetched.get(v) for v in variants if fetched.get(v) is not None), None)
                     self._cache_set(self._cache_key(name), info)
                     out[name] = info
+
         return out
 
     def resolve_name_by_fame(self, ocr_name: str, fame: int) -> str | None:
-        """Return the Neople character name at *fame* most similar to OCR text.
+        """Return the Neople character name at *fame* most similar to OCR text."""
 
-        Requires a Neople API key. The exact fame bracket is queried, then the
-        best candidate is selected by normalized string similarity. Truncated
-        OCR names ending in "..." are matched as prefixes.
-        """
         if not self._neople_api_key or fame <= 0:
             return None
         candidates = self._fetch_characters_by_fame(fame)
         if not candidates:
             return None
-
         ocr = ocr_name.strip()
         if not ocr:
             return None
+
         best: tuple[float, NeopleCharacter] | None = None
         for candidate in candidates:
             score = self._name_similarity(ocr, candidate.name)
@@ -261,25 +305,20 @@ class DfogangClient:
         threshold = 0.55 if ocr.endswith("...") else 0.68
         return best[1].name if best[0] >= threshold else None
 
-    # ------------------------------------------------------------------
-    # Cache helpers
-    # ------------------------------------------------------------------
-
     @staticmethod
     def _cache_key(name: str) -> str:
         return name.strip()
 
     def _cache_get(self, name: str):
-        """Return cached value or _SENTINEL if missing/expired."""
         with self._cache_lock:
             entry = self._cache.get(name)
-        if entry is None:
-            return _SENTINEL
-        score, fetched_at = entry
-        ttl = self._negative_ttl if score is None else self._ttl
-        if time.monotonic() - fetched_at > ttl:
-            return _SENTINEL
-        return score
+            if entry is None:
+                return _SENTINEL
+            score, fetched_at = entry
+            ttl = self._negative_ttl if score is None else self._ttl
+            if time.monotonic() - fetched_at > ttl:
+                return _SENTINEL
+            return score
 
     def _cache_set(self, name: str, score: Optional[ScoreInfo]) -> None:
         with self._cache_lock:
@@ -288,12 +327,12 @@ class DfogangClient:
     def _fame_cache_get(self, fame: int) -> list[NeopleCharacter] | None:
         with self._cache_lock:
             entry = self._fame_cache.get(fame)
-        if entry is None:
-            return None
-        rows, fetched_at = entry
-        if time.monotonic() - fetched_at > self._ttl:
-            return None
-        return rows
+            if entry is None:
+                return None
+            rows, fetched_at = entry
+            if time.monotonic() - fetched_at > self._ttl:
+                return None
+            return rows
 
     def _fame_cache_set(self, fame: int, rows: list[NeopleCharacter]) -> None:
         with self._cache_lock:
@@ -304,12 +343,14 @@ class DfogangClient:
         if cached is not None:
             return cached
         if self._demo:
-            rows = [NeopleCharacter(
-                server_id="cain",
-                character_id=hashlib.md5(str(fame).encode()).hexdigest(),
-                name=f"Demo{fame}",
-                fame=fame,
-            )]
+            rows = [
+                NeopleCharacter(
+                    server_id="cain",
+                    character_id=hashlib.md5(str(fame).encode()).hexdigest(),
+                    name=f"Demo{fame}",
+                    fame=fame,
+                )
+            ]
             self._fame_cache_set(fame, rows)
             return rows
 
@@ -340,14 +381,16 @@ class DfogangClient:
             fame = item.get("fame")
             if not name or fame is None:
                 continue
-            out.append(NeopleCharacter(
-                server_id=item.get("serverId") or "",
-                character_id=item.get("characterId") or "",
-                name=name,
-                fame=int(fame),
-                job_name=item.get("jobName") or "",
-                job_grow_name=item.get("jobGrowName") or "",
-            ))
+            out.append(
+                NeopleCharacter(
+                    server_id=item.get("serverId") or "",
+                    character_id=item.get("characterId") or "",
+                    name=name,
+                    fame=int(fame),
+                    job_name=item.get("jobName") or "",
+                    job_grow_name=item.get("jobGrowName") or "",
+                )
+            )
         return out
 
     @staticmethod
@@ -366,14 +409,7 @@ class DfogangClient:
             ratio = max(ratio, min(0.95, len(ocr) / max(1, len(cand)) + 0.25))
         return ratio
 
-    # ------------------------------------------------------------------
-    # Retry wrapper
-    # ------------------------------------------------------------------
-
     def _fetch_with_retry(self, name: str) -> Optional[ScoreInfo]:
-        # Two attempts max with a short fixed backoff. The capture loop runs
-        # at 10fps so even if both attempts fail, the next frame will retry
-        # via the negative-cache TTL — there's no point in long backoff here.
         delays = [0.5]
         last_exc: Exception = RuntimeError("unreachable")
         attempts = len(delays) + 1
@@ -392,35 +428,27 @@ class DfogangClient:
                 if status is not None and 400 <= status < 500:
                     return None
                 last_exc = exc
-                _safe_print(f"[dfogang] fetch failed for {name!r} "
-                            f"(attempt {attempt + 1}/{attempts}): {exc}")
+                _safe_print(
+                    f"[dfogang] fetch failed for {name!r} "
+                    f"(attempt {attempt + 1}/{attempts}): {exc}"
+                )
                 if attempt < len(delays):
                     time.sleep(delays[attempt])
-        # Cache as None so the negative-cache TTL prevents tight retries on a
-        # persistently-broken backend; the loop will retry after that.
         _safe_print(f"[dfogang] giving up on {name!r}: {last_exc}")
         return None
-
-    # ------------------------------------------------------------------
-    # Demo mode
-    # ------------------------------------------------------------------
 
     @staticmethod
     def _demo_score(name: str) -> Optional[ScoreInfo]:
         """Deterministic fake info. Names starting with '_' simulate 'not found'."""
+
         if name.startswith("_"):
             return None
         digest = int(hashlib.md5(name.lower().encode()).hexdigest(), 16)
-        raw = (digest % 999_000) + 1_000
-        # Format like the real backend: "92.1k" / "1.2M".
-        if raw >= 1_000_000:
-            score_str = f"{raw / 1_000_000:.1f}M"
-        else:
-            score_str = f"{raw / 1_000:.1f}k"
+        raw = (digest % 9_990_000) + 1_000
         return ScoreInfo(
             name=name,
-            score=score_str,
-            is_buffer=(digest % 4 == 0),  # ~25% are buffers (matches reality roughly)
+            score=_format_compact_score(raw) or "—",
+            is_buffer=(digest % 4 == 0),
             fame=raw,
             rank_percentile=(digest % 10000) / 10000.0,
         )
@@ -455,8 +483,6 @@ class DfogangClient:
                 if candidate not in seen:
                     seen.add(candidate)
                     variants.append(candidate)
-        # Keep the combinatorics bounded. OCR mistakes in names are usually
-        # one or two visually-confusable glyphs, and dfogang lookup is remote.
         for i, ch in enumerate(name):
             for repl in substitutions.get(ch, []):
                 candidate = name[:i] + repl + name[i + 1:]
@@ -475,14 +501,9 @@ class DfogangClient:
                         return variants
         return variants
 
-    # ------------------------------------------------------------------
-    # THE stub — fill this in once the dfogang API spec is available
-    # ------------------------------------------------------------------
-
     def _fetch_score(self, name: str) -> Optional[ScoreInfo]:
         import requests
-        # If the recognized name ends with '...' the OCR truncated it; the
-        # backend offers a prefix endpoint that picks the best-fame match.
+
         truncated = name.endswith("...")
         if truncated:
             url = f"{self._base_url}/api/v1/realtime/score_by_prefix"
@@ -491,8 +512,6 @@ class DfogangClient:
             url = f"{self._base_url}/api/v1/realtime/score"
             params = {"server": self._server, "name": name}
         resp = requests.get(url, params=params, timeout=self._request_timeout)
-        # 404 from the backend = name (or prefix) not found. Return None
-        # without retrying — it's a definitive answer, not a transient error.
         if resp.status_code == 404:
             return None
         resp.raise_for_status()
@@ -501,7 +520,7 @@ class DfogangClient:
             return None
         return ScoreInfo(
             name=data.get("name") or name,
-            score=data.get("score_display") or "—",
+            score=_format_score_from_payload(data),
             is_buffer=bool(data.get("is_buffer")),
             fame=data.get("fame"),
             rank_percentile=data.get("rank_percentile"),
@@ -512,14 +531,22 @@ class DfogangClient:
 
         self._limiter.acquire()
         url = f"{self._base_url}/api/v1/realtime/scores_fast"
-        resp = requests.post(url, json={"server": self._server, "names": names}, timeout=self._request_timeout)
+        resp = requests.post(
+            url,
+            json={"server": self._server, "names": names},
+            timeout=self._request_timeout,
+        )
         if not resp.ok:
             fast_error = resp.status_code
             non_prefix = [n for n in names if not n.endswith("...")]
             out: dict[str, Optional[ScoreInfo]] = {}
             if non_prefix:
                 url = f"{self._base_url}/api/v1/realtime/scores"
-                resp = requests.post(url, json={"server": self._server, "names": non_prefix}, timeout=10)
+                resp = requests.post(
+                    url,
+                    json={"server": self._server, "names": non_prefix},
+                    timeout=10,
+                )
                 resp.raise_for_status()
                 out.update(self._parse_many_response(non_prefix, resp.json()))
             for name in names:
@@ -528,7 +555,9 @@ class DfogangClient:
                 else:
                     out.setdefault(name, None)
             if fast_error not in (404, 500):
-                _safe_print(f"[dfogang] scores_fast unavailable (HTTP {fast_error}); used fallback")
+                _safe_print(
+                    f"[dfogang] scores_fast unavailable (HTTP {fast_error}); used fallback"
+                )
             return out
         resp.raise_for_status()
         return self._parse_many_response(names, resp.json())
@@ -542,7 +571,7 @@ class DfogangClient:
                 continue
             out[original] = ScoreInfo(
                 name=item.get("name") or original,
-                score=item.get("score_display") or "??",
+                score=_format_score_from_payload(item, fallback="??"),
                 is_buffer=bool(item.get("is_buffer")),
                 fame=item.get("fame"),
                 rank_percentile=item.get("rank_percentile"),
@@ -552,57 +581,43 @@ class DfogangClient:
         return out
 
 
-# ---------------------------------------------------------------------------
-# __main__ demo — run with:  python src/dfogang.py
-# ---------------------------------------------------------------------------
-
 if __name__ == "__main__":
     import concurrent.futures
 
     print("=== DfogangClient demo ===\n")
-
     client = DfogangClient(demo=True, ttl=10.0, negative_ttl=5.0)
 
-    # 1. Basic lookup
     info = client.get_info("zerkaa")
     print(f"[1] zerkaa -> {info!r}")
     assert info is not None, "Expected info"
     score = info.score
 
-    # 2. Cache hit on second call
     t0 = time.monotonic()
     score2 = client.get_score("zerkaa")
     elapsed = time.monotonic() - t0
-    print(f"[2] zerkaa (cached) -> {score2!r}  (took {elapsed*1000:.2f} ms)")
+    print(f"[2] zerkaa (cached) -> {score2!r} (took {elapsed * 1000:.2f} ms)")
     assert score == score2, "Cache should return the same value"
     assert elapsed < 0.01, "Cache hit should be near-instant"
 
-    # 3. Negative result (names starting with '_' → None)
     missing = client.get_score("_ghost")
     print(f"[3] _ghost -> {missing!r}")
     assert missing is None, "Expected None for missing name"
-
-    # Confirm negative is also cached
     missing2 = client.get_score("_ghost")
     assert missing2 is None
 
-    # 4. Concurrency: 4 threads fetch the same name — only 1 underlying call.
-    # Subclass to intercept _demo_score and count actual invocations.
     counter = {"n": 0}
 
     class _InstrumentedClient(DfogangClient):
         @staticmethod
         def _demo_score(name: str) -> Optional[ScoreInfo]:
             counter["n"] += 1
-            time.sleep(0.05)   # simulate latency so threads pile up
+            time.sleep(0.05)
             return DfogangClient._demo_score(name)
 
     c2 = _InstrumentedClient(demo=True)
-
     with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
         futures = [pool.submit(c2.get_score, "raiden") for _ in range(4)]
         results = [f.result() for f in futures]
-
     print(f"[4] 4 threads fetched 'raiden': results={results}, underlying calls={counter['n']}")
     assert counter["n"] == 1, f"Expected 1 underlying fetch, got {counter['n']}"
     assert len(set(results)) == 1, "All threads should get the same score"

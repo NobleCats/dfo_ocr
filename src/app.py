@@ -273,6 +273,11 @@ class LiveDemo:
         # Key is a tuple of OCR signals, deterministic for the same UI state.
         self._pa_resolve_cache: dict[tuple, str | None] = {}
         self._pa_resolve_pending: dict[tuple, float] = {}
+        # party_apply: stable row -> resolved canonical name. This key
+        # deliberately excludes OCR'd name text, because name OCR is the
+        # noisiest signal and can jitter between frames after a successful
+        # resolve.
+        self._pa_stable_resolve_cache: dict[tuple, str | None] = {}
 
         # API result cache, keyed on (fame, class_norm, name_norm):
         #   _pa_resolve_cache[key] = canonical_name (str) or None
@@ -575,7 +580,7 @@ class LiveDemo:
             # search a narrow band around that scale — drops restart
             # latency from a 1.9s full sweep to ~100ms.
             use_narrow = (cold and self._last_pa_scale is not None
-                          and self._pa_narrow_misses < 5)
+                          and self._pa_narrow_misses < 2)
             near = self._last_pa_scale if use_narrow else None
             det = detect_party_apply(frame, hint=self._last_party_apply_hint,
                                      near_scale=near)
@@ -749,6 +754,13 @@ class LiveDemo:
             row_key = self._pa_row_key(row)
             if row_key is None:
                 continue
+            stable_key = self._pa_stable_row_key(row)
+            if stable_key is not None and stable_key in self._pa_stable_resolve_cache:
+                canonical = self._pa_stable_resolve_cache[stable_key]
+                self._pa_resolve_cache[row_key] = canonical
+                if canonical:
+                    self._pa_candidate_logged.add(row_key)
+                continue
             if row_key in self._pa_candidate_pending:
                 continue
             if row_key in self._pa_candidate_logged:
@@ -757,7 +769,7 @@ class LiveDemo:
             self._pa_candidate_pending.add(row_key)
             self._score_executor.submit(
                 self._fetch_pa_candidates,
-                row.fame, row.class_raw, ocr_name, row_key)
+                row.fame, row.class_raw, ocr_name, row_key, stable_key)
         # Cache the frame result so refresh_overlay can rebuild without
         # waiting for the next capture tick.
         self._last_pa_result = {
@@ -779,6 +791,21 @@ class LiveDemo:
         ocr_name = (row.name or row.name_raw or "").strip()
         return (row.fame, _norm_for_cache(row.class_raw),
                 _norm_for_cache(ocr_name))
+
+    def _pa_stable_row_key(self, row: PartyApplyRow) -> tuple | None:
+        """Stable key for the same party-apply row across noisy name OCR.
+
+        Fame + class are more stable than character-name OCR in this UI. This
+        prevents a row that already resolved successfully from being queried
+        again when the visible name jitters on later frames.
+        """
+        if not self.neople.has_key:
+            return None
+        if row.fame is None or not row.class_raw:
+            return None
+        if row.class_score < PARTY_APPLY_MIN_CLASS_CONF:
+            return None
+        return (row.fame, _norm_for_cache(row.class_raw))
 
     def _build_pa_annotations(self, det: PartyApplyDetection,
                               rows: list[PartyApplyRow],
@@ -822,7 +849,14 @@ class LiveDemo:
             # OCR name with "?" so the user still sees recognition is alive.
             return self._pa_overlay_dict(det, row, origin_xy,
                                          f"{ocr_display}  ?", COLOR_NEUTRAL)
-        canonical = self._pa_resolve_cache.get(row_key, _PENDING)
+        stable_key = self._pa_stable_row_key(row)
+        if stable_key is not None and stable_key in self._pa_stable_resolve_cache:
+            canonical = self._pa_stable_resolve_cache[stable_key]
+            self._pa_resolve_cache[row_key] = canonical
+            if canonical:
+                self._pa_candidate_logged.add(row_key)
+        else:
+            canonical = self._pa_resolve_cache.get(row_key, _PENDING)
         if canonical is _PENDING:
             text, color = f"{ocr_display}  …", COLOR_NEUTRAL
         elif not canonical:
@@ -854,7 +888,8 @@ class LiveDemo:
         return {"x": x, "y": y, "text": text, "color": color}
 
     def _fetch_pa_candidates(self, fame: int, ocr_class: str,
-                             ocr_name: str, key: tuple) -> None:
+                             ocr_name: str, key: tuple,
+                             stable_key: tuple | None = None) -> None:
         """Single-shot resolve. Caller must have already added `key` to
         `_pa_candidate_pending`. Always clears pending; sets resolve cache
         to canonical-or-None and triggers dfogang on success."""
@@ -879,7 +914,7 @@ class LiveDemo:
         else:
             top = candidates[0]
             self._log.info(
-                "api  fame=%d %s  class=%r name=%r  → matched %r (sim≥0.70)",
+                "api  fame=%d %s  class=%r name=%r  → matched %r",
                 fame, source, ocr_class, ocr_name, top.name)
             for c in candidates[:5]:
                 sim = name_similarity(ocr_name, c.name) if ocr_name else 0.0
@@ -892,6 +927,8 @@ class LiveDemo:
         self._pa_resolve_cache[key] = canonical
         if canonical:
             self._pa_candidate_logged.add(key)  # success → never re-attempt
+            if stable_key is not None:
+                self._pa_stable_resolve_cache[stable_key] = canonical
             self._log.info("commit canonical=%r → dfogang", canonical)
             # Kick off dfogang lookup right now; signal will refresh overlay.
             self.get_info(canonical)

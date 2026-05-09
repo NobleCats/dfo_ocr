@@ -343,7 +343,7 @@ class NeopleClient:
     def resolve_candidates(self, *, fame: int, ocr_class: str,
                            ocr_name: str = "",
                            window: int = 100,
-                           name_min_similarity: float = 0.7,
+                           name_min_similarity: float = 0.62,
                            ) -> tuple[JobInfo | None,
                                        list[FameCharacter], str]:
         """OCR class+fame → candidate characters.
@@ -380,6 +380,19 @@ class NeopleClient:
             ((name_similarity(ocr_name, c.name), c) for c in rows),
             key=lambda t: t[0], reverse=True)
         accepted = [c for sim, c in scored if sim >= name_min_similarity]
+        if not accepted and scored:
+            top_sim, top_char = scored[0]
+            # Party-apply name OCR is noisy. Fame is often exact and the
+            # class filter has already constrained the candidate set, so a
+            # small exact-fame candidate set can safely accept a slightly
+            # lower name similarity.
+            if top_char.fame == fame and len(rows) <= 10 and top_sim >= 0.60:
+                _logger.info(
+                    "  soften name threshold %s: accepting %s "
+                    "(fame exact, sim=%.2f < %.2f, %d cands)",
+                    source, top_char.name, top_sim, name_min_similarity,
+                    len(rows))
+                accepted = [top_char]
         if not accepted:
             top3 = ", ".join(
                 f"{c.name}(fame={c.fame},sim={s:.2f})"

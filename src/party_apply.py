@@ -132,6 +132,10 @@ ROW_MIN_TEXT_PIXELS = 12
 _DEFAULT_MARKER_PATH = (
     resource_path("markers", "party_apply", "column_header_69pct.png")
 )
+_OPTIONAL_MARKER_PATHS = (
+    resource_path("markers", "party_apply", "column_header_80pct.png"),
+    resource_path("markers", "party_apply", "column_header_100pct.png"),
+)
 
 
 @dataclass
@@ -192,13 +196,25 @@ def _load_marker(path: Path | None = None) -> np.ndarray:
     return np.array(Image.open(p).convert("RGB"))
 
 
+def _load_markers() -> list[np.ndarray]:
+    """Load every available party-apply header marker.
+
+    The 69% reference marker is always used. Optional marker captures for
+    other UI scales can be dropped into resources/markers/party_apply/ as
+    column_header_80pct.png or column_header_100pct.png without changing code.
+    """
+    paths = [_DEFAULT_MARKER_PATH]
+    paths.extend(p for p in _OPTIONAL_MARKER_PATHS if p.exists())
+    return [_load_marker(p) for p in paths]
+
+
 def detect_party_apply(image_rgb: np.ndarray,
                        *,
                        min_scale: float = 0.6,
                        max_scale: float = 2.0,
                        scale_step: float = 0.02,
                        coarse_step: float = 0.1,
-                       score_threshold: float = 0.65,
+                       score_threshold: float = 0.60,
                        marker: np.ndarray | None = None,
                        hint: PartyApplyDetection | None = None,
                        # Wide enough to absorb a one-frame in-game window
@@ -216,41 +232,62 @@ def detect_party_apply(image_rgb: np.ndarray,
     Returns marker bbox plus precomputed row tops. The caller can then read
     each row at the per-column offsets defined above.
     """
-    if marker is None:
-        marker = _load_marker()
     img_gray = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2GRAY)
-    marker_gray = cv2.cvtColor(marker, cv2.COLOR_RGB2GRAY)
+    marker_grays = (
+        [cv2.cvtColor(marker, cv2.COLOR_RGB2GRAY)]
+        if marker is not None
+        else [cv2.cvtColor(m, cv2.COLOR_RGB2GRAY) for m in _load_markers()]
+    )
 
     H, W = img_gray.shape
 
     if hint is not None and hint.found:
-        cand = _hint_lookup(img_gray, marker_gray, hint, hint_search_radius,
-                            score_threshold, max_rows, H)
-        if cand is not None:
-            return cand
+        best_hint: PartyApplyDetection | None = None
+        for marker_gray in marker_grays:
+            cand = _hint_lookup(img_gray, marker_gray, hint,
+                                hint_search_radius, score_threshold,
+                                max_rows, H)
+            if cand is not None and (best_hint is None or
+                                     cand.score > best_hint.score):
+                best_hint = cand
+        if best_hint is not None:
+            return best_hint
 
     full_scales = np.arange(min_scale, max_scale + 1e-6, scale_step)
     if near_scale is not None:
         lo = near_scale - near_scale_radius
         hi = near_scale + near_scale_radius
         scales = full_scales[(full_scales >= lo) & (full_scales <= hi)]
-        return _scan_scales(scales, img_gray, marker_gray, score_threshold,
-                            max_rows, H, W)
+        best = PartyApplyDetection(False, 0.0, 1.0, (0, 0, 0, 0), [])
+        for marker_gray in marker_grays:
+            cand = _scan_scales(scales, img_gray, marker_gray,
+                                score_threshold, max_rows, H, W)
+            if cand.score > best.score:
+                best = cand
+        return best
 
     # Two-stage scan: coarse (large step) over full range to find the right
     # neighbourhood, then fine refinement around the best candidate. This
     # cuts cold-scan latency on a 2K-wide capture from ~5s to <1s without
     # sacrificing score quality.
     coarse = np.arange(min_scale, max_scale + 1e-6, coarse_step)
-    coarse_best = _scan_scales(coarse, img_gray, marker_gray, score_threshold,
-                               max_rows, H, W)
+    coarse_best = PartyApplyDetection(False, 0.0, 1.0, (0, 0, 0, 0), [])
+    for marker_gray in marker_grays:
+        cand = _scan_scales(coarse, img_gray, marker_gray, score_threshold,
+                            max_rows, H, W)
+        if cand.score > coarse_best.score:
+            coarse_best = cand
     if coarse_best.score == 0:
         return coarse_best
     fine_lo = max(min_scale, coarse_best.scale - coarse_step)
     fine_hi = min(max_scale, coarse_best.scale + coarse_step)
     fine = np.arange(fine_lo, fine_hi + 1e-6, scale_step)
-    fine_best = _scan_scales(fine, img_gray, marker_gray, score_threshold,
-                             max_rows, H, W)
+    fine_best = PartyApplyDetection(False, 0.0, 1.0, (0, 0, 0, 0), [])
+    for marker_gray in marker_grays:
+        cand = _scan_scales(fine, img_gray, marker_gray, score_threshold,
+                            max_rows, H, W)
+        if cand.score > fine_best.score:
+            fine_best = cand
     return fine_best if fine_best.score >= coarse_best.score else coarse_best
 
 
