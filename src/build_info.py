@@ -1,0 +1,2 @@
+BUILD_HASH = "dev"
+BUILD_DATE = ""

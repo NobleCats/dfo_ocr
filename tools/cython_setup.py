@@ -21,6 +21,7 @@ from setuptools import Extension, setup
 MODULES = [
     "app",
     "bake_library",
+    "build_info",
     "capture",
     "debug_capture",
     "detect",

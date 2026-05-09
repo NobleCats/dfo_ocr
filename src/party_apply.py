@@ -174,6 +174,11 @@ class PartyApplyRow:
     adventure: str
     adventure_raw: str
     adventure_score: float
+    # Partial fame prefix range: set when OCR captured only leading digits of a
+    # 5-6 digit fame number (e.g. '7850' → range_min=78500, range_max=78509).
+    # When set, Neople search uses [range_min..range_max] instead of fame ± 100.
+    fame_range_min: int | None = None
+    fame_range_max: int | None = None
 
     @property
     def is_empty(self) -> bool:
@@ -188,6 +193,31 @@ class PartyApplyRow:
 
         return True
 
+
+
+def _partial_fame_prefix(raw_digits: str) -> tuple[int, int] | None:
+    """Return (range_min, range_max) when raw_digits is a plausible partial
+    fame prefix (e.g. '7850' → (78500, 78509) for missing_digits=1).
+
+    Endgame fame is typically 5 digits (10000..99999). If OCR captured 4
+    digits that don't form a valid fame value, they may be the leading 4 of
+    5. 3-digit prefixes (100-wide ranges) are also supported. missing_digits
+    >= 3 would make the range too broad and is rejected.
+    """
+    if not raw_digits or not raw_digits.isdigit():
+        return None
+    n = len(raw_digits)
+    for expected_len in (5, 6):
+        missing = expected_len - n
+        if missing <= 0 or missing >= 3:
+            continue
+        prefix_val = int(raw_digits)
+        mul = 10 ** missing
+        range_min = prefix_val * mul
+        range_max = range_min + mul - 1
+        if 10_000 <= range_min and range_max <= 999_999:
+            return range_min, range_max
+    return None
 
 
 _ROW_OCR_CACHE: dict[bytes, PartyApplyRow] = {}
@@ -904,6 +934,20 @@ def recognize_party_apply(
             s,
         )
 
+        # Partial fame prefix: if OCR got only leading digits (e.g. '7850'
+        # when the full fame is 78500), compute an exact search range so
+        # the Neople API can still find the character.
+        fame_range_min: int | None = None
+        fame_range_max: int | None = None
+        if fame_value is None and fame_text:
+            _raw_digits = re.sub(r"[^0-9]", "", fame_text)
+            _partial = _partial_fame_prefix(_raw_digits)
+            if _partial is not None:
+                fame_range_min, fame_range_max = _partial
+                _logger.debug(
+                    "row %d partial fame prefix %r → [%d..%d]",
+                    i, _raw_digits, fame_range_min, fame_range_max)
+
         name_raw, name_score = _read_text(image_rgb, name_x, (name_y0, name_y1), templates)
         name = _strip_lv_prefix(name_raw)
 
@@ -929,6 +973,8 @@ def recognize_party_apply(
             adventure=adventure,
             adventure_raw=adv_raw,
             adventure_score=adv_score,
+            fame_range_min=fame_range_min,
+            fame_range_max=fame_range_max,
         )
 
         if row.is_empty:

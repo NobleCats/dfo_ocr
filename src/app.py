@@ -778,7 +778,8 @@ class LiveDemo:
             self._pa_candidate_pending.add(row_key)
             self._score_executor.submit(
                 self._fetch_pa_candidates,
-                row.fame, row.class_raw, ocr_name, row_key, stable_key)
+                row.fame, row.class_raw, ocr_name, row_key, stable_key,
+                row.fame_range_min, row.fame_range_max)
         # Cache the frame result so refresh_overlay can rebuild without
         # waiting for the next capture tick.
         self._last_pa_result = {
@@ -793,13 +794,15 @@ class LiveDemo:
         ineligible for API lookup (missing fame, low class confidence)."""
         if not self.neople.has_key:
             return None
-        if row.fame is None or not row.class_raw:
+        if not row.class_raw:
+            return None
+        if row.fame is None and row.fame_range_min is None:
             return None
         if row.class_score < PARTY_APPLY_MIN_CLASS_CONF:
             return None
         ocr_name = (row.name or row.name_raw or "").strip()
-        return (row.fame, _norm_for_cache(row.class_raw),
-                _norm_for_cache(ocr_name))
+        return (row.fame, row.fame_range_min, row.fame_range_max,
+                _norm_for_cache(row.class_raw), _norm_for_cache(ocr_name))
 
     def _pa_stable_row_key(self, row: PartyApplyRow) -> tuple | None:
         """Stable key for the same party-apply row across noisy name OCR.
@@ -810,11 +813,14 @@ class LiveDemo:
         """
         if not self.neople.has_key:
             return None
-        if row.fame is None or not row.class_raw:
+        if not row.class_raw:
+            return None
+        if row.fame is None and row.fame_range_min is None:
             return None
         if row.class_score < PARTY_APPLY_MIN_CLASS_CONF:
             return None
-        return (row.fame, _norm_for_cache(row.class_raw))
+        return (row.fame, row.fame_range_min, row.fame_range_max,
+                _norm_for_cache(row.class_raw))
 
     def _build_pa_annotations(self, det: PartyApplyDetection,
                               rows: list[PartyApplyRow],
@@ -896,35 +902,40 @@ class LiveDemo:
         y = origin_y + (top + bot) // 2
         return {"x": x, "y": y, "text": text, "color": color}
 
-    def _fetch_pa_candidates(self, fame: int, ocr_class: str,
+    def _fetch_pa_candidates(self, fame: int | None, ocr_class: str,
                              ocr_name: str, key: tuple,
-                             stable_key: tuple | None = None) -> None:
+                             stable_key: tuple | None = None,
+                             fame_range_min: int | None = None,
+                             fame_range_max: int | None = None) -> None:
         """Single-shot resolve. Caller must have already added `key` to
         `_pa_candidate_pending`. Always clears pending; sets resolve cache
         to canonical-or-None and triggers dfogang on success."""
         canonical: str | None = None
+        fame_display = (str(fame) if fame is not None
+                        else f"range[{fame_range_min}..{fame_range_max}]")
         try:
             job, candidates, source = self.neople.resolve_candidates(
-                fame=fame, ocr_class=ocr_class, ocr_name=ocr_name)
+                fame=fame or 0, ocr_class=ocr_class, ocr_name=ocr_name,
+                fame_range_min=fame_range_min, fame_range_max=fame_range_max)
         except Exception as exc:
             self._log.warning("Neople resolve failed for fame=%s class=%r: %s",
-                              fame, ocr_class, exc)
+                              fame_display, ocr_class, exc)
             self._pa_candidate_pending.discard(key)
             self._pa_resolve_cache[key] = None
             self._safe_emit(self._frame_emitter.refresh_overlay)
             return
         if job is None:
-            self._log.info("api  fame=%d  class=%r  → no Neo job match",
-                           fame, ocr_class)
+            self._log.info("api  fame=%s  class=%r  → no Neo job match",
+                           fame_display, ocr_class)
         elif not candidates:
             self._log.info(
-                "api  fame=%d %s  class=%r name=%r  → no name-confident match",
-                fame, source, ocr_class, ocr_name)
+                "api  fame=%s %s  class=%r name=%r  → no name-confident match",
+                fame_display, source, ocr_class, ocr_name)
         else:
             top = candidates[0]
             self._log.info(
-                "api  fame=%d %s  class=%r name=%r  → matched %r",
-                fame, source, ocr_class, ocr_name, top.name)
+                "api  fame=%s %s  class=%r name=%r  → matched %r",
+                fame_display, source, ocr_class, ocr_name, top.name)
             for c in candidates[:5]:
                 sim = name_similarity(ocr_name, c.name) if ocr_name else 0.0
                 self._log.info(

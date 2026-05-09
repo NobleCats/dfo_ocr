@@ -86,6 +86,7 @@ hiddenimports = [
     # registers them even though no .py is visible during analysis.
     "app",
     "bake_library",
+    "build_info",
     "capture",
     "debug_capture",
     "detect",

@@ -343,56 +343,94 @@ class NeopleClient:
     def resolve_candidates(self, *, fame: int, ocr_class: str,
                            ocr_name: str = "",
                            window: int = 100,
+                           fame_range_min: int | None = None,
+                           fame_range_max: int | None = None,
                            name_min_similarity: float = 0.62,
                            ) -> tuple[JobInfo | None,
                                        list[FameCharacter], str]:
         """OCR class+fame → candidate characters.
 
-        Single-shot lookup. Assumes the user is at Neo-tier awakening
-        (true for ~all global-server endgame characters): we look up the
-        Neo: JobInfo for the OCR'd class and call characters-fame once.
-        If the OCR'd name was supplied, we also filter to candidates with
-        sufficient name similarity. No digit variants, no expanding
-        windows — this stays cheap and predictable, and the network is
-        the bottleneck anyway.
+        Searches ALL plausible Neo-tier job/grow combinations for the OCR'd
+        class. Ambiguous classes like 'Neo: Crusader' (Priest M and Priest F)
+        are searched independently and results merged before name filtering.
 
-        Returns (job, candidates_above_threshold, source). `candidates`
-        is the FILTERED list: only entries with sim ≥ `name_min_similarity`
+        If `fame_range_min`/`fame_range_max` are set (partial OCR prefix),
+        the exact [min..max] range replaces the `fame ± window` search.
+
+        Returns (job, candidates_above_threshold, source). `candidates` is
+        the FILTERED list: only entries with sim ≥ `name_min_similarity`
         when an OCR name was provided. `source` is a short label for logs.
         """
-        if fame <= 0:
-            return None, [], ""
-        job = self._lookup_neo_job(ocr_class)
-        if job is None:
+        use_range = fame_range_min is not None and fame_range_max is not None
+        if not use_range and fame <= 0:
             return None, [], ""
 
-        rows = self.search_by_fame(job_id=job.job_id,
-                                   job_grow_id=job.grow_id,
-                                   fame=fame, window=window)
-        source = f"{job.job_name}/{job.grow_name} ±{window}"
+        jobs = self._lookup_neo_jobs(ocr_class)
+        if not jobs:
+            return None, [], ""
+
+        if len(jobs) > 1:
+            candidates_display = ", ".join(
+                f"'{j.job_name}/{j.grow_name}'" for j in jobs)
+            _logger.info(
+                "class_ambiguous key/class=%r candidates=[%s]",
+                ocr_class, candidates_display)
+
+        all_rows: list[FameCharacter] = []
+        source_parts: list[str] = []
+
+        for job in jobs:
+            if use_range:
+                rows = self._search_by_fame_range(
+                    job_id=job.job_id, job_grow_id=job.grow_id,
+                    fame_min=fame_range_min, fame_max=fame_range_max)
+                src = (f"{job.job_name}/{job.grow_name}"
+                       f" [{fame_range_min}..{fame_range_max}]")
+            else:
+                rows = self.search_by_fame(
+                    job_id=job.job_id, job_grow_id=job.grow_id,
+                    fame=fame, window=window)
+                src = f"{job.job_name}/{job.grow_name} ±{window}"
+            _logger.debug("  searched %s → %d rows", src, len(rows))
+            source_parts.append(src)
+            all_rows.extend(rows)
+
+        # Deduplicate by character_id (same char can match via multiple job searches).
+        seen_ids: set[str] = set()
+        rows: list[FameCharacter] = []
+        for r in all_rows:
+            if r.character_id not in seen_ids:
+                seen_ids.add(r.character_id)
+                rows.append(r)
+
+        source = " | ".join(source_parts)
+        primary_job = jobs[0]
+
         if not rows:
-            return job, [], source
+            return primary_job, [], source
 
         if not ocr_name:
-            return job, rows, source
+            return primary_job, rows, source
 
         scored = sorted(
             ((name_similarity(ocr_name, c.name), c) for c in rows),
             key=lambda t: t[0], reverse=True)
         accepted = [c for sim, c in scored if sim >= name_min_similarity]
+
         if not accepted and scored:
             top_sim, top_char = scored[0]
-            # Party-apply name OCR is noisy. Fame is often exact and the
-            # class filter has already constrained the candidate set, so a
-            # small exact-fame candidate set can safely accept a slightly
-            # lower name similarity.
-            if top_char.fame == fame and len(rows) <= 10 and top_sim >= 0.60:
+            # Fame-exact softening: within a small candidate set, accept
+            # slightly lower name similarity when fame is precisely matched
+            # or when we're in a bounded range query (all results are in range).
+            fame_match = use_range or (top_char.fame == fame)
+            if fame_match and len(rows) <= 10 and top_sim >= 0.60:
                 _logger.info(
                     "  soften name threshold %s: accepting %s "
-                    "(fame exact, sim=%.2f < %.2f, %d cands)",
-                    source, top_char.name, top_sim, name_min_similarity,
-                    len(rows))
+                    "(fame_match=%s, sim=%.2f < %.2f, %d cands)",
+                    source, top_char.name, fame_match,
+                    top_sim, name_min_similarity, len(rows))
                 accepted = [top_char]
+
         if not accepted:
             top3 = ", ".join(
                 f"{c.name}(fame={c.fame},sim={s:.2f})"
@@ -400,20 +438,52 @@ class NeopleClient:
             _logger.info(
                 "  reject %s: %d cands < %.2f sim. top: %s",
                 source, len(rows), name_min_similarity, top3)
-        return job, accepted, source
 
-    def _lookup_neo_job(self, ocr_text: str) -> JobInfo | None:
-        """Resolve OCR'd class label to the Neo-tier JobInfo. Falls back to
-        whatever JobInfo the index produced if no Neo variant exists."""
+        return primary_job, accepted, source
+
+    def _lookup_neo_jobs(self, ocr_text: str) -> list[JobInfo]:
+        """Return ALL plausible Neo-tier JobInfo entries for the OCR'd class.
+
+        Preserves all matching Neo-tier entries (not only the first), so
+        ambiguous classes like 'Neo: Crusader' (Priest M and Priest F) are
+        both returned and searched independently by resolve_candidates.
+        Falls back to all match_jobs results if no Neo-tier entry exists.
+        """
         matches = self.match_jobs(ocr_text)
         if not matches:
-            return None
-        # Prefer Neo: tier — that's what every endgame character actually
-        # has registered in characters-fame.
-        for m in matches:
-            if m.grow_name.lower().startswith("neo:"):
-                return m
-        return matches[0]
+            return []
+        neo = [m for m in matches if m.grow_name.lower().startswith("neo:")]
+        return neo if neo else matches
+
+    def _lookup_neo_job(self, ocr_text: str) -> JobInfo | None:
+        """Backwards-compatible single-result wrapper around _lookup_neo_jobs."""
+        jobs = self._lookup_neo_jobs(ocr_text)
+        return jobs[0] if jobs else None
+
+    def _search_by_fame_range(self, *, job_id: str, job_grow_id: str,
+                               fame_min: int, fame_max: int) -> list[FameCharacter]:
+        """Search fame in an explicit [fame_min..fame_max] range.
+
+        Used for partial OCR prefix fallback (e.g. visible '7850' → search
+        78500..78509). Results are cached the same way as search_by_fame.
+        """
+        if not self._api_key or fame_min <= 0:
+            return []
+        key = (job_id, job_grow_id, fame_min, fame_max)
+        with self._cache_lock:
+            entry = self._fame_cache.get(key)
+        if entry is not None:
+            ttl = self._neg_ttl if not entry.value else self._ttl
+            if (time.monotonic() - entry.fetched_at) < ttl:
+                return list(entry.value)  # type: ignore[arg-type]
+        out = self._fetch_fame(ALL_SERVERS, fame_min, fame_max, job_id, job_grow_id)
+        _logger.debug(
+            "  range fame=[%d..%d] jobId=%s growId=%s → %d rows",
+            fame_min, fame_max, job_id[:8] if job_id else "-",
+            job_grow_id[:8] if job_grow_id else "-", len(out))
+        with self._cache_lock:
+            self._fame_cache[key] = _CacheEntry(value=out)
+        return out
 
     def character_detail(self, server_id: str, character_id: str) -> CharacterDetail | None:
         """Fetch /df/servers/<srv>/characters/<id>. Cached."""

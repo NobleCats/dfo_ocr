@@ -36,7 +36,15 @@ from qt_dpi import configure_qt_high_dpi  # noqa: E402
 
 APP_NAME = "DFOGANG Raid Helper"
 APP_VERSION = "v1.0beta"
+
+try:
+    from build_info import BUILD_HASH as _BUILD_HASH  # noqa: E402
+    _BUILD_ID = _BUILD_HASH if _BUILD_HASH and _BUILD_HASH != "dev" else "dev"
+except Exception:
+    _BUILD_ID = "dev"
+
 APP_DISPLAY_NAME = f"{APP_NAME} {APP_VERSION}"
+APP_VERSION_LABEL = f"{APP_VERSION} ({_BUILD_ID})"
 
 PORTABLE_DIR = Path(r"C:\Users\Noble\Desktop\works\DFOGANG")
 DEFAULT_CAPTURE_INTERVAL_MS = 250
@@ -127,7 +135,7 @@ class ControlWindow(QWidget):
         title.setFont(QFont(self.font_family, 16, QFont.Weight.Bold))
         title.setStyleSheet(f"color: {NORMAL_TEXT_COLOR}; background: transparent;")
 
-        version = QLabel(APP_VERSION)
+        version = QLabel(APP_VERSION_LABEL)
         version.setFont(QFont(self.font_family, 8, QFont.Weight.Bold))
         version.setStyleSheet(f"color: {DISABLED_TEXT_COLOR}; background: transparent;")
 

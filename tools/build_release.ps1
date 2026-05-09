@@ -201,6 +201,18 @@ if ($pyCount -lt 1) {
 }
 Write-Host "  Copied $pyCount .py file(s)."
 
+# Overwrite the dev build_info.py placeholder with the real git hash so the
+# EXE's title and logs report the exact source commit that was compiled.
+$gitHash = (& git rev-parse --short HEAD 2>$null)
+if (-not $gitHash) { $gitHash = 'unknown' }
+$buildDate = (Get-Date -Format 'yyyy-MM-dd')
+$buildInfoPath = Join-Path $ProtectedSrc 'build_info.py'
+@"
+BUILD_HASH = "$gitHash"
+BUILD_DATE = "$buildDate"
+"@ | Out-File -FilePath $buildInfoPath -Encoding utf8 -NoNewline
+Write-Host "  Build hash: $gitHash  date: $buildDate"
+
 
 Write-Step '6/8' 'Cythonizing modules into .pyd...'
 $cythonSetup = Join-Path $RepoRoot 'tools\cython_setup.py'
@@ -239,7 +251,7 @@ Write-Step '8/8' 'Verifying dist and packaging release ZIP...'
 # Third-party packages (PyQt6, paddle, etc.) are allowed to ship their own
 # .py files — that is normal PyInstaller behavior.
 $ProtectedNames = @(
-    'app', 'bake_library', 'capture', 'debug_capture', 'detect',
+    'app', 'bake_library', 'build_info', 'capture', 'debug_capture', 'detect',
     'dfogang', 'extract', 'general_ocr', 'gui_app', 'match',
     'neople', 'overlay', 'party_apply', 'qt_dpi', 'recognize',
     'resources', 'segment', 'templates'
