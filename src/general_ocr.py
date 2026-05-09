@@ -11,6 +11,9 @@ from __future__ import annotations
 
 import logging
 import os
+
+DEFAULT_OCR_PROFILE = "mobile"
+DEFAULT_OCR_RECOGNITION_MODEL = "en_PP-OCRv5_mobile_rec"
 import re
 import sys as _sys
 import threading
@@ -33,6 +36,13 @@ _reader = None
 _engine: str = ""  # "paddle" or "easyocr"
 _reader_lock = threading.Lock()
 _reader_failed = False
+
+# OCR profile:
+# - default/server: PaddleOCR default pipeline, currently server recognition model.
+# - mobile: lighter English/numeric recognizer for testing speed on DFO crops.
+# Override exact model with DFO_OCR_RECOGNITION_MODEL.
+_OCR_PROFILE = os.environ.get("DFO_OCR_PROFILE", DEFAULT_OCR_PROFILE).strip().lower()
+_OCR_RECOGNITION_MODEL = os.environ.get("DFO_OCR_RECOGNITION_MODEL", "").strip()
 
 _CACHE_CAP = 256
 _fame_cache: dict[bytes, tuple[int | None, str, float]] = {}
@@ -91,19 +101,37 @@ def _try_paddle():
     except Exception as exc:
         _logger.warning("PaddleOCR import failed: %s", exc)
         return None, ""
-    try:
-        reader = PaddleOCR(
-            lang="en",
-            use_doc_orientation_classify=False,
-            use_doc_unwarping=False,
-            use_textline_orientation=False,
-            enable_mkldnn=False,
-        )
-        _logger.info("PaddleOCR reader initialized (PP-OCRv5)")
-        return reader, "paddle"
-    except Exception as exc:
-        _logger.warning("PaddleOCR init failed: %s", exc)
-        return None, ""
+    base_kwargs = dict(
+        lang="en",
+        use_doc_orientation_classify=False,
+        use_doc_unwarping=False,
+        use_textline_orientation=False,
+        enable_mkldnn=False,
+    )
+
+    model_name = _OCR_RECOGNITION_MODEL
+    if not model_name and _OCR_PROFILE == "mobile":
+        model_name = "en_PP-OCRv5_mobile_rec"
+
+    attempts: list[tuple[str, dict]] = []
+    if model_name:
+        kwargs = dict(base_kwargs)
+        kwargs["text_recognition_model_name"] = model_name
+        attempts.append((model_name, kwargs))
+    attempts.append(("default", base_kwargs))
+
+    for label, kwargs in attempts:
+        try:
+            reader = PaddleOCR(**kwargs)
+            if label == "default":
+                _logger.info("PaddleOCR reader initialized (PP-OCRv5 default profile=%s)", _OCR_PROFILE or "server")
+            else:
+                _logger.info("PaddleOCR reader initialized (PP-OCRv5 rec_model=%s profile=%s)", label, _OCR_PROFILE)
+            return reader, "paddle"
+        except Exception as exc:
+            _logger.warning("PaddleOCR init failed for %s: %s", label, exc)
+            continue
+    return None, ""
 
 
 def _try_easyocr():
@@ -273,34 +301,16 @@ def read_fame(crop_rgb: np.ndarray) -> tuple[int | None, str, float]:
 
 
 _FAME_MIN, _FAME_MAX = 10_000, 999_999
-# Most current characters live in this band. We use it as a TIE-BREAK
-# — when the raw OCR digits parse to something out of this band but a
-# trimmed variant lands inside it, prefer the trimmed value. Outside
-# this band is still accepted (future fame inflation) when no in-band
-# variant exists.
-_FAME_TYPICAL_MIN, _FAME_TYPICAL_MAX = 30_000, 200_000
 
 
 def _parse_with_trim(digits: str) -> int | None:
-    """Pick the most plausible fame value from OCR digits.
-
-    OCR commonly grabs a stray leading digit from the star icon's
-    anti-aliased lobe (e.g. '276477' for real '76,477') OR a stray
-    trailing one. We try the original plus three single-side trims and
-    pick by:
-      1. prefer candidates within the typical fame band
-      2. tie-break by SHORTEST digit string (fewer hallucinated chars)
-    Falls back to "any in [10_000..999_999]" so future >200k fame still
-    parses.
-    """
     candidates = {digits}
     if len(digits) > 1:
         candidates.add(digits[1:])
         candidates.add(digits[:-1])
     if len(digits) > 2:
         candidates.add(digits[1:-1])
-
-    parsed: list[int] = []
+    best = None
     for cand in candidates:
         if not cand:
             continue
@@ -309,14 +319,9 @@ def _parse_with_trim(digits: str) -> int | None:
         except ValueError:
             continue
         if _FAME_MIN <= v <= _FAME_MAX:
-            parsed.append(v)
-    if not parsed:
-        return None
-    typical = [v for v in parsed if _FAME_TYPICAL_MIN <= v <= _FAME_TYPICAL_MAX]
-    pool = typical or parsed
-    # Shortest digit count first, then smallest numeric value as final tie-break.
-    pool.sort(key=lambda v: (len(str(v)), v))
-    return pool[0]
+            if best is None or len(cand) > len(str(best)):
+                best = v
+    return best
 
 
 def read_class(crop_rgb: np.ndarray) -> tuple[str, float]:

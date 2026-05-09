@@ -1,210 +1,496 @@
-11:32:41.006 INFO LiveDemo init  ui_scale=1.000  interval=250ms  monitor=None  window_title='Dungeon Fighter Online'  log_dir=C:\Users\Noble\AppData\Local\DFOGANG_RaidHelper
-11:32:42.023 DEBUG party_apply frame  cap=33  det=709  recog=0  total=746ms  found=False  score=0.32  scale=0.46  rows=0
-11:32:43.076 DEBUG party_apply frame  cap=30  det=771  recog=0  total=801ms  found=False  score=0.36  scale=0.36  rows=0
-11:32:44.098 DEBUG party_apply frame  cap=33  det=782  recog=0  total=815ms  found=False  score=0.33  scale=0.43  rows=0
-11:32:44.337 INFO PaddleOCR reader initialized (PP-OCRv5)
-11:32:44.982 DEBUG party_apply frame  cap=32  det=675  recog=0  total=707ms  found=False  score=0.35  scale=0.34  rows=0
-11:32:45.678 DEBUG party_apply frame  cap=32  det=620  recog=0  total=652ms  found=False  score=0.34  scale=0.48  rows=0
-11:32:46.456 DEBUG party_apply frame  cap=31  det=652  recog=0  total=684ms  found=False  score=0.30  scale=0.56  rows=0
-11:32:47.255 DEBUG party_apply frame  cap=30  det=699  recog=0  total=729ms  found=False  score=0.29  scale=0.66  rows=0
-11:32:48.001 DEBUG party_apply frame  cap=25  det=702  recog=0  total=728ms  found=False  score=0.30  scale=0.86  rows=0
-11:32:48.746 DEBUG party_apply frame  cap=28  det=698  recog=0  total=727ms  found=False  score=0.29  scale=0.66  rows=0
-11:32:49.495 DEBUG party_apply frame  cap=23  det=701  recog=0  total=723ms  found=False  score=0.29  scale=0.66  rows=0
-11:32:49.821 INFO loading templates for detected scale 0.910 (key 0.91)
-11:32:49.908 INFO loading templates for detected scale 0.650 (key 0.65)
-11:32:49.974 DEBUG party_apply frame  cap=24  det=274  recog=3  total=452ms  found=True  score=1.00  scale=1.30  rows=0
-11:32:49.975 INFO party_apply STATE lost -> found after 8.97s
-11:32:50.104 DEBUG party_apply frame  cap=23  det=61  recog=2  total=86ms  found=True  score=1.00  scale=1.30  rows=0
-11:32:50.362 DEBUG party_apply frame  cap=28  det=58  recog=2  total=88ms  found=True  score=1.00  scale=1.30  rows=0
-11:32:50.614 DEBUG party_apply frame  cap=28  det=56  recog=2  total=86ms  found=True  score=1.00  scale=1.30  rows=0
-11:32:50.858 DEBUG party_apply frame  cap=25  det=59  recog=2  total=87ms  found=True  score=1.00  scale=1.30  rows=0
-11:32:51.114 DEBUG party_apply frame  cap=29  det=61  recog=2  total=92ms  found=True  score=1.00  scale=1.30  rows=0
-11:32:51.372 DEBUG party_apply frame  cap=29  det=62  recog=2  total=94ms  found=True  score=1.00  scale=1.30  rows=0
-11:32:51.611 DEBUG party_apply frame  cap=28  det=58  recog=2  total=89ms  found=True  score=1.00  scale=1.30  rows=0
-11:32:51.870 DEBUG party_apply frame  cap=28  det=60  recog=3  total=92ms  found=True  score=1.00  scale=1.30  rows=0
-11:32:52.114 DEBUG party_apply frame  cap=30  det=63  recog=2  total=95ms  found=True  score=1.00  scale=1.30  rows=0
-11:32:52.363 DEBUG party_apply frame  cap=28  det=58  recog=2  total=88ms  found=True  score=1.00  scale=1.30  rows=0
-11:32:53.425 INFO hint lost — falling back to cold scan next frame
-11:32:53.425 DEBUG party_apply frame  cap=31  det=869  recog=0  total=901ms  found=False  score=0.29  scale=0.66  rows=0
-11:32:53.427 INFO party_apply STATE found -> lost after 3.45s
-11:32:54.396 DEBUG party_apply frame  cap=26  det=849  recog=0  total=875ms  found=False  score=0.26  scale=0.88  rows=0
-11:32:55.413 DEBUG party_apply frame  cap=30  det=859  recog=0  total=889ms  found=False  score=0.23  scale=0.88  rows=0
-11:32:56.289 DEBUG party_apply frame  cap=26  det=741  recog=0  total=767ms  found=False  score=0.22  scale=0.88  rows=0
-11:32:57.408 DEBUG party_apply frame  cap=27  det=856  recog=0  total=883ms  found=False  score=0.23  scale=0.88  rows=0
-11:32:58.405 DEBUG party_apply frame  cap=28  det=855  recog=0  total=884ms  found=False  score=0.33  scale=0.46  rows=0
-11:32:59.239 DEBUG party_apply frame  cap=28  det=685  recog=0  total=714ms  found=False  score=0.27  scale=1.10  rows=0
-11:33:00.068 DEBUG party_apply frame  cap=29  det=768  recog=0  total=797ms  found=False  score=0.35  scale=0.30  rows=0
-11:33:00.466 INFO loading templates for detected scale 0.462 (key 0.46)
-11:33:00.536 INFO loading templates for detected scale 0.330 (key 0.33)
-11:33:00.600 DEBUG party_apply frame  cap=30  det=161  recog=1  total=325ms  found=True  score=1.00  scale=0.66  rows=0
-11:33:00.600 INFO party_apply STATE lost -> found after 7.17s
-11:33:00.824 DEBUG party_apply frame  cap=22  det=30  recog=1  total=54ms  found=True  score=1.00  scale=0.66  rows=0
-11:33:01.081 DEBUG party_apply frame  cap=23  det=30  recog=1  total=55ms  found=True  score=1.00  scale=0.66  rows=0
-11:33:01.338 DEBUG party_apply frame  cap=26  det=32  recog=1  total=59ms  found=True  score=1.00  scale=0.66  rows=0
-11:33:01.581 DEBUG party_apply frame  cap=24  det=33  recog=1  total=58ms  found=True  score=1.00  scale=0.66  rows=0
-11:33:01.842 DEBUG party_apply frame  cap=29  det=34  recog=1  total=64ms  found=True  score=1.00  scale=0.66  rows=0
-11:33:02.080 DEBUG party_apply frame  cap=27  det=34  recog=1  total=62ms  found=True  score=1.00  scale=0.66  rows=0
-11:33:02.330 DEBUG party_apply frame  cap=29  det=31  recog=1  total=61ms  found=True  score=1.00  scale=0.66  rows=0
-11:33:02.584 DEBUG party_apply frame  cap=27  det=31  recog=1  total=59ms  found=True  score=1.00  scale=0.66  rows=0
-11:33:02.829 DEBUG party_apply frame  cap=26  det=32  recog=1  total=59ms  found=True  score=1.00  scale=0.66  rows=0
-11:33:03.090 DEBUG party_apply frame  cap=28  det=34  recog=1  total=64ms  found=True  score=1.00  scale=0.66  rows=0
-11:33:03.340 DEBUG party_apply frame  cap=31  det=32  recog=1  total=64ms  found=True  score=1.00  scale=0.66  rows=0
-11:33:03.576 DEBUG party_apply frame  cap=23  det=29  recog=1  total=53ms  found=True  score=1.00  scale=0.66  rows=0
-11:33:03.834 DEBUG party_apply frame  cap=29  det=31  recog=1  total=61ms  found=True  score=1.00  scale=0.66  rows=0
-11:33:04.074 DEBUG party_apply frame  cap=23  det=33  recog=1  total=56ms  found=True  score=1.00  scale=0.66  rows=0
-11:33:04.330 DEBUG party_apply frame  cap=24  det=31  recog=1  total=56ms  found=True  score=1.00  scale=0.66  rows=0
-11:33:05.383 INFO hint lost — falling back to cold scan next frame
-11:33:05.383 DEBUG party_apply frame  cap=31  det=831  recog=0  total=863ms  found=False  score=0.34  scale=0.32  rows=0
-11:33:05.384 INFO party_apply STATE found -> lost after 4.78s
-11:33:06.270 DEBUG party_apply frame  cap=23  det=725  recog=0  total=748ms  found=False  score=0.38  scale=0.38  rows=0
-11:33:07.282 DEBUG party_apply frame  cap=33  det=723  recog=0  total=756ms  found=False  score=0.32  scale=0.52  rows=0
-11:33:08.216 DEBUG party_apply frame  cap=24  det=670  recog=0  total=693ms  found=False  score=0.25  scale=0.62  rows=0
-11:33:09.116 DEBUG party_apply frame  cap=24  det=817  recog=0  total=841ms  found=False  score=0.25  scale=0.82  rows=0
-11:33:10.166 DEBUG party_apply frame  cap=28  det=866  recog=0  total=894ms  found=False  score=0.23  scale=0.88  rows=0
-11:33:10.998 DEBUG party_apply frame  cap=27  det=696  recog=0  total=723ms  found=False  score=0.23  scale=0.88  rows=0
-11:33:11.903 DEBUG party_apply frame  cap=28  det=847  recog=0  total=875ms  found=False  score=0.23  scale=0.88  rows=0
-11:33:12.882 DEBUG party_apply frame  cap=25  det=838  recog=0  total=863ms  found=False  score=0.23  scale=1.00  rows=0
-11:33:13.780 DEBUG party_apply frame  cap=28  det=728  recog=0  total=756ms  found=False  score=0.23  scale=1.00  rows=0
-11:33:14.902 DEBUG party_apply frame  cap=25  det=857  recog=0  total=882ms  found=False  score=0.24  scale=0.76  rows=0
-11:33:15.892 DEBUG party_apply frame  cap=28  det=837  recog=0  total=864ms  found=False  score=0.28  scale=0.56  rows=0
-11:33:16.759 DEBUG party_apply frame  cap=25  det=716  recog=0  total=741ms  found=False  score=0.25  scale=0.88  rows=0
-11:33:17.594 DEBUG party_apply frame  cap=28  det=793  recog=0  total=822ms  found=False  score=0.36  scale=0.46  rows=0
-11:33:18.609 DEBUG party_apply frame  cap=27  det=807  recog=0  total=835ms  found=False  score=0.37  scale=0.36  rows=0
-11:33:19.433 INFO loading templates for detected scale 0.616 (key 0.62)
-11:33:19.506 INFO loading templates for detected scale 0.440 (key 0.44)
-11:33:19.580 DEBUG party_apply frame  cap=25  det=637  recog=1  total=810ms  found=True  score=0.90  scale=0.88  rows=0
-11:33:19.580 INFO party_apply STATE lost -> found after 14.20s
-11:33:19.865 DEBUG party_apply frame  cap=31  det=54  recog=1  total=86ms  found=True  score=0.95  scale=0.88  rows=0
-11:33:20.100 DEBUG party_apply frame  cap=26  det=54  recog=1  total=81ms  found=True  score=0.95  scale=0.88  rows=0
-11:33:20.352 DEBUG party_apply frame  cap=29  det=51  recog=1  total=81ms  found=True  score=0.95  scale=0.88  rows=0
-11:33:20.606 DEBUG party_apply frame  cap=29  det=51  recog=2  total=81ms  found=True  score=0.95  scale=0.88  rows=0
-11:33:20.847 DEBUG party_apply frame  cap=25  det=50  recog=1  total=76ms  found=True  score=0.95  scale=0.88  rows=0
-11:33:21.108 DEBUG party_apply frame  cap=33  det=52  recog=1  total=87ms  found=True  score=0.95  scale=0.88  rows=0
-11:33:21.345 DEBUG party_apply frame  cap=24  det=51  recog=1  total=76ms  found=True  score=0.95  scale=0.88  rows=0
-11:33:21.602 DEBUG party_apply frame  cap=27  det=51  recog=1  total=79ms  found=True  score=0.95  scale=0.88  rows=0
-11:33:21.859 DEBUG party_apply frame  cap=28  det=51  recog=1  total=80ms  found=True  score=0.95  scale=0.88  rows=0
-11:33:22.105 DEBUG party_apply frame  cap=31  det=54  recog=1  total=87ms  found=True  score=0.95  scale=0.88  rows=0
-11:33:22.355 DEBUG party_apply frame  cap=32  det=53  recog=1  total=86ms  found=True  score=0.95  scale=0.88  rows=0
-11:33:23.390 INFO hint lost — falling back to cold scan next frame
-11:33:23.390 DEBUG party_apply frame  cap=30  det=834  recog=0  total=865ms  found=False  score=0.37  scale=0.38  rows=0
-11:33:23.391 INFO party_apply STATE found -> lost after 3.81s
-11:33:24.296 DEBUG party_apply frame  cap=25  det=750  recog=0  total=774ms  found=False  score=0.34  scale=0.42  rows=0
-11:33:25.353 DEBUG party_apply frame  cap=29  det=792  recog=0  total=821ms  found=False  score=0.27  scale=0.58  rows=0
-11:33:26.242 DEBUG party_apply frame  cap=22  det=696  recog=0  total=718ms  found=False  score=0.29  scale=0.80  rows=0
-11:33:27.127 DEBUG party_apply frame  cap=24  det=829  recog=0  total=853ms  found=False  score=0.28  scale=0.82  rows=0
-11:33:28.143 DEBUG party_apply frame  cap=27  det=838  recog=0  total=865ms  found=False  score=0.27  scale=0.78  rows=0
-11:33:28.997 DEBUG party_apply frame  cap=29  det=698  recog=0  total=727ms  found=False  score=0.25  scale=1.14  rows=0
-11:33:29.863 DEBUG party_apply frame  cap=27  det=808  recog=0  total=835ms  found=False  score=0.26  scale=0.82  rows=0
-11:33:30.886 DEBUG party_apply frame  cap=24  det=842  recog=0  total=867ms  found=False  score=0.26  scale=0.85  rows=0
-11:33:31.773 DEBUG party_apply frame  cap=26  det=720  recog=0  total=746ms  found=False  score=0.25  scale=1.00  rows=0
-11:33:32.678 DEBUG party_apply frame  cap=33  det=871  recog=0  total=905ms  found=False  score=0.24  scale=1.00  rows=0
-11:33:33.667 DEBUG party_apply frame  cap=28  det=870  recog=0  total=898ms  found=False  score=0.35  scale=1.00  rows=0
-11:33:34.510 DEBUG party_apply frame  cap=29  det=709  recog=0  total=739ms  found=False  score=0.35  scale=1.00  rows=0
-11:33:35.399 DEBUG party_apply frame  cap=37  det=842  recog=0  total=879ms  found=False  score=0.35  scale=1.00  rows=0
-11:33:36.317 DEBUG party_apply frame  cap=27  det=771  recog=0  total=798ms  found=False  score=0.38  scale=0.36  rows=0
-11:33:37.220 DEBUG party_apply frame  cap=28  det=666  recog=0  total=694ms  found=False  score=0.34  scale=0.32  rows=0
-11:33:38.022 DEBUG party_apply frame  cap=25  det=728  recog=0  total=754ms  found=False  score=0.38  scale=0.38  rows=0
-11:33:39.049 DEBUG party_apply frame  cap=26  det=754  recog=0  total=780ms  found=False  score=0.35  scale=0.50  rows=0
-11:33:39.981 DEBUG party_apply frame  cap=28  det=675  recog=0  total=702ms  found=False  score=0.34  scale=1.00  rows=0
-11:33:40.862 DEBUG party_apply frame  cap=25  det=819  recog=0  total=843ms  found=False  score=0.34  scale=1.00  rows=0
-11:33:41.891 DEBUG party_apply frame  cap=31  det=839  recog=0  total=870ms  found=False  score=0.23  scale=0.88  rows=0
-11:33:42.768 DEBUG party_apply frame  cap=28  det=721  recog=0  total=750ms  found=False  score=0.26  scale=1.14  rows=0
-11:33:43.663 DEBUG party_apply frame  cap=29  det=864  recog=0  total=894ms  found=False  score=0.25  scale=0.91  rows=0
-11:33:44.664 DEBUG party_apply frame  cap=32  det=860  recog=0  total=892ms  found=False  score=0.25  scale=0.66  rows=0
-11:33:45.537 DEBUG party_apply frame  cap=24  det=742  recog=0  total=766ms  found=False  score=0.24  scale=0.66  rows=0
-11:33:46.676 DEBUG party_apply frame  cap=29  det=869  recog=0  total=898ms  found=False  score=0.22  scale=0.88  rows=0
-11:33:47.681 DEBUG party_apply frame  cap=26  det=885  recog=0  total=911ms  found=False  score=0.25  scale=0.88  rows=0
-11:33:48.528 DEBUG party_apply frame  cap=32  det=722  recog=0  total=755ms  found=False  score=0.23  scale=0.88  rows=0
-11:33:49.414 DEBUG party_apply frame  cap=29  det=856  recog=0  total=886ms  found=False  score=0.37  scale=0.46  rows=0
-11:33:50.356 DEBUG party_apply frame  cap=28  det=809  recog=0  total=838ms  found=False  score=0.37  scale=0.30  rows=0
-11:33:51.191 DEBUG party_apply frame  cap=28  det=637  recog=0  total=665ms  found=False  score=0.37  scale=0.49  rows=0
-11:33:52.071 DEBUG party_apply frame  cap=24  det=778  recog=0  total=803ms  found=False  score=0.37  scale=0.38  rows=0
-11:33:53.026 DEBUG party_apply frame  cap=24  det=735  recog=0  total=759ms  found=False  score=0.38  scale=0.44  rows=0
-11:33:53.952 DEBUG party_apply frame  cap=27  det=647  recog=0  total=674ms  found=False  score=0.28  scale=0.58  rows=0
-11:33:54.896 INFO loading templates for detected scale 0.560 (key 0.56)
-11:33:54.966 INFO loading templates for detected scale 0.400 (key 0.40)
-11:33:55.039 DEBUG party_apply frame  cap=29  det=848  recog=1  total=1020ms  found=True  score=0.51  scale=0.80  rows=0
-11:33:55.039 INFO party_apply STATE lost -> found after 31.65s
-11:33:55.360 DEBUG party_apply frame  cap=28  det=54  recog=1  total=83ms  found=True  score=0.51  scale=0.80  rows=0
-11:33:55.604 DEBUG party_apply frame  cap=26  det=54  recog=2  total=81ms  found=True  score=0.51  scale=0.80  rows=0
-11:33:55.856 DEBUG party_apply frame  cap=26  det=50  recog=1  total=78ms  found=True  score=0.51  scale=0.80  rows=0
-11:33:56.103 DEBUG party_apply frame  cap=29  det=53  recog=2  total=84ms  found=True  score=0.51  scale=0.80  rows=0
-11:33:56.350 DEBUG party_apply frame  cap=27  det=52  recog=1  total=80ms  found=True  score=0.51  scale=0.80  rows=0
-11:33:56.607 DEBUG party_apply frame  cap=30  det=53  recog=1  total=84ms  found=True  score=0.51  scale=0.80  rows=0
-11:33:56.847 DEBUG party_apply frame  cap=25  det=49  recog=1  total=75ms  found=True  score=0.51  scale=0.80  rows=0
-11:33:57.107 INFO marker moved  Δ=(+107,+51)  scan=54ms
-11:33:57.108 DEBUG party_apply frame  cap=30  det=54  recog=1  total=87ms  found=True  score=0.47  scale=0.80  rows=0
-11:33:57.353 INFO marker moved  Δ=(+156,+73)  scan=52ms
-11:33:57.353 DEBUG party_apply frame  cap=30  det=52  recog=1  total=84ms  found=True  score=0.48  scale=0.80  rows=0
-11:33:57.604 DEBUG party_apply frame  cap=28  det=52  recog=1  total=82ms  found=True  score=0.48  scale=0.80  rows=0
-11:33:57.854 DEBUG party_apply frame  cap=24  det=50  recog=1  total=76ms  found=True  score=0.48  scale=0.80  rows=0
-11:33:58.098 DEBUG party_apply frame  cap=26  det=52  recog=1  total=79ms  found=True  score=0.48  scale=0.80  rows=0
-11:33:58.353 DEBUG party_apply frame  cap=29  det=53  recog=1  total=83ms  found=True  score=0.48  scale=0.80  rows=0
-11:33:58.607 DEBUG party_apply frame  cap=28  det=51  recog=1  total=81ms  found=True  score=0.48  scale=0.80  rows=0
-11:33:58.849 DEBUG party_apply frame  cap=23  det=55  recog=1  total=79ms  found=True  score=0.48  scale=0.80  rows=0
-11:33:59.106 DEBUG party_apply frame  cap=32  det=52  recog=1  total=85ms  found=True  score=0.48  scale=0.80  rows=0
-11:33:59.360 INFO marker moved  Δ=(+97,-92)  scan=53ms
-11:33:59.363 DEBUG party_apply frame  cap=30  det=54  recog=1  total=85ms  found=True  score=0.49  scale=0.80  rows=0
-11:33:59.598 INFO marker moved  Δ=(+132,-184)  scan=48ms
-11:33:59.600 DEBUG party_apply frame  cap=26  det=49  recog=1  total=77ms  found=True  score=0.50  scale=0.80  rows=0
-11:33:59.855 DEBUG party_apply frame  cap=23  det=51  recog=1  total=76ms  found=True  score=0.50  scale=0.80  rows=0
-11:34:00.097 DEBUG party_apply frame  cap=26  det=51  recog=1  total=79ms  found=True  score=0.50  scale=0.80  rows=0
-11:34:00.360 DEBUG party_apply frame  cap=30  det=55  recog=1  total=87ms  found=True  score=0.50  scale=0.80  rows=0
-11:34:00.615 DEBUG party_apply frame  cap=30  det=53  recog=1  total=84ms  found=True  score=0.50  scale=0.80  rows=0
-11:34:01.678 INFO marker moved  Δ=(-417,+9)  scan=880ms
-11:34:01.680 DEBUG party_apply frame  cap=27  det=880  recog=1  total=909ms  found=True  score=0.49  scale=0.80  rows=0
-11:34:01.854 INFO marker moved  Δ=(-66,-3)  scan=50ms
-11:34:01.856 DEBUG party_apply frame  cap=25  det=50  recog=1  total=77ms  found=True  score=0.50  scale=0.80  rows=0
-11:34:02.099 DEBUG party_apply frame  cap=25  det=53  recog=1  total=79ms  found=True  score=0.50  scale=0.80  rows=0
-11:34:02.353 DEBUG party_apply frame  cap=24  det=51  recog=1  total=77ms  found=True  score=0.50  scale=0.80  rows=0
-11:34:02.609 DEBUG party_apply frame  cap=29  det=48  recog=1  total=78ms  found=True  score=0.50  scale=0.80  rows=0
-11:34:02.848 DEBUG party_apply frame  cap=26  det=50  recog=1  total=78ms  found=True  score=0.50  scale=0.80  rows=0
-11:34:03.104 DEBUG party_apply frame  cap=26  det=50  recog=1  total=77ms  found=True  score=0.50  scale=0.80  rows=0
-11:34:04.188 INFO hint lost — falling back to cold scan next frame
-11:34:04.190 DEBUG party_apply frame  cap=30  det=876  recog=0  total=907ms  found=False  score=0.30  scale=0.80  rows=0
-11:34:04.190 INFO party_apply STATE found -> lost after 9.15s
-11:34:05.131 DEBUG party_apply frame  cap=26  det=831  recog=0  total=857ms  found=False  score=0.31  scale=0.74  rows=0
-11:34:06.126 DEBUG party_apply frame  cap=29  det=825  recog=0  total=854ms  found=False  score=0.29  scale=0.80  rows=0
-11:34:07.015 DEBUG party_apply frame  cap=24  det=715  recog=0  total=739ms  found=False  score=0.26  scale=1.00  rows=0
-11:34:07.924 DEBUG party_apply frame  cap=35  det=866  recog=1  total=902ms  found=True  score=0.50  scale=0.80  rows=0
-11:34:07.924 INFO party_apply STATE lost -> found after 3.73s
-11:34:08.098 DEBUG party_apply frame  cap=28  det=50  recog=1  total=80ms  found=True  score=0.50  scale=0.80  rows=0
-11:34:08.357 DEBUG party_apply frame  cap=28  det=53  recog=1  total=83ms  found=True  score=0.50  scale=0.80  rows=0
-11:34:08.606 DEBUG party_apply frame  cap=28  det=50  recog=1  total=80ms  found=True  score=0.50  scale=0.80  rows=0
-11:34:08.846 DEBUG party_apply frame  cap=23  det=50  recog=1  total=75ms  found=True  score=0.50  scale=0.80  rows=0
-11:34:09.103 DEBUG party_apply frame  cap=26  det=51  recog=1  total=78ms  found=True  score=0.50  scale=0.80  rows=0
-11:34:10.196 INFO hint lost — falling back to cold scan next frame
-11:34:10.197 DEBUG party_apply frame  cap=27  det=901  recog=0  total=928ms  found=False  score=0.27  scale=0.83  rows=0
-11:34:10.197 INFO party_apply STATE found -> lost after 2.27s
-11:34:11.159 DEBUG party_apply frame  cap=26  det=864  recog=0  total=890ms  found=False  score=0.26  scale=0.80  rows=0
-11:34:12.140 DEBUG party_apply frame  cap=29  det=840  recog=0  total=869ms  found=False  score=0.31  scale=0.46  rows=0
-11:34:12.998 DEBUG party_apply frame  cap=28  det=695  recog=0  total=723ms  found=False  score=0.26  scale=0.57  rows=0
-11:34:13.791 DEBUG party_apply frame  cap=26  det=739  recog=0  total=765ms  found=False  score=0.37  scale=0.43  rows=0
-11:34:14.842 DEBUG party_apply frame  cap=25  det=798  recog=0  total=824ms  found=False  score=0.33  scale=0.32  rows=0
-11:34:15.644 DEBUG party_apply frame  cap=30  det=593  recog=0  total=623ms  found=False  score=0.38  scale=0.38  rows=0
-11:34:16.553 DEBUG party_apply frame  cap=30  det=748  recog=0  total=779ms  found=False  score=0.38  scale=0.50  rows=0
-11:34:17.631 DEBUG party_apply frame  cap=30  det=833  recog=0  total=863ms  found=False  score=0.31  scale=0.62  rows=0
-11:34:18.483 DEBUG party_apply frame  cap=25  det=686  recog=0  total=711ms  found=False  score=0.31  scale=0.80  rows=0
-11:34:19.397 DEBUG party_apply frame  cap=28  det=843  recog=0  total=872ms  found=False  score=0.36  scale=1.04  rows=0
-11:34:20.379 INFO loading templates for detected scale 0.756 (key 0.76)
-11:34:20.449 INFO loading templates for detected scale 0.540 (key 0.54)
-11:34:20.513 DEBUG party_apply frame  cap=23  det=838  recog=1  total=996ms  found=True  score=0.60  scale=1.08  rows=0
-11:34:20.515 INFO party_apply STATE lost -> found after 10.32s
-11:34:20.614 INFO marker moved  Δ=(+23,+6)  scan=56ms
-11:34:20.616 DEBUG party_apply frame  cap=33  det=56  recog=2  total=91ms  found=True  score=0.93  scale=1.08  rows=0
-11:34:20.862 DEBUG party_apply frame  cap=28  det=61  recog=1  total=91ms  found=True  score=0.93  scale=1.08  rows=0
-11:34:21.109 DEBUG party_apply frame  cap=24  det=56  recog=2  total=82ms  found=True  score=0.93  scale=1.08  rows=0
-11:34:21.362 DEBUG party_apply frame  cap=27  det=57  recog=2  total=85ms  found=True  score=0.93  scale=1.08  rows=0
-11:34:21.610 DEBUG party_apply frame  cap=24  det=61  recog=1  total=87ms  found=True  score=0.93  scale=1.08  rows=0
-11:34:21.864 DEBUG party_apply frame  cap=25  det=59  recog=2  total=85ms  found=True  score=0.93  scale=1.08  rows=0
-11:34:22.103 DEBUG party_apply frame  cap=25  det=56  recog=2  total=83ms  found=True  score=0.93  scale=1.08  rows=0
-11:34:22.364 DEBUG party_apply frame  cap=30  det=62  recog=2  total=94ms  found=True  score=0.93  scale=1.08  rows=0
-11:34:22.613 DEBUG party_apply frame  cap=28  det=57  recog=1  total=87ms  found=True  score=0.93  scale=1.08  rows=0
-11:34:22.862 DEBUG party_apply frame  cap=26  det=63  recog=2  total=91ms  found=True  score=0.93  scale=1.08  rows=0
-11:34:23.105 DEBUG party_apply frame  cap=24  det=57  recog=2  total=83ms  found=True  score=0.93  scale=1.08  rows=0
-11:34:23.361 DEBUG party_apply frame  cap=28  det=59  recog=1  total=89ms  found=True  score=0.93  scale=1.08  rows=0
-11:34:23.606 DEBUG party_apply frame  cap=26  det=56  recog=2  total=84ms  found=True  score=0.93  scale=1.08  rows=0
-11:34:23.861 DEBUG party_apply frame  cap=30  det=56  recog=2  total=88ms  found=True  score=0.93  scale=1.08  rows=0
-11:34:24.719 INFO LiveDemo close requested
-11:34:24.720 DEBUG capture close (ignored): '_thread._local' object has no attribute 'bmp'
-11:34:24.963 INFO hint lost — falling back to cold scan next frame
+12:17:51.945 INFO LiveDemo init  ui_scale=1.000  interval=250ms  monitor=None  window_title='Dungeon Fighter Online'  log_dir=C:\Users\Noble\AppData\Local\DFOGANG_RaidHelper
+12:17:52.330 INFO loading templates for detected scale 0.700 (key 0.70)
+12:17:52.496 INFO loading templates for detected scale 0.500 (key 0.50)
+12:17:52.651 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:17:52.652 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:17:52.653 DEBUG party_apply frame  cap=30  det=83  recog=5  total=442ms  found=True  score=0.94  scale=1.00  rows=0
+12:17:52.653 INFO party_apply STATE lost -> found after 0.71s
+12:17:52.789 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:17:52.790 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:17:52.792 DEBUG party_apply frame  cap=26  det=55  recog=4  total=85ms  found=True  score=0.94  scale=1.00  rows=0
+12:17:53.086 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:17:53.087 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:17:53.089 DEBUG party_apply frame  cap=31  det=58  recog=10  total=100ms  found=True  score=0.94  scale=1.00  rows=0
+12:17:53.304 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:17:53.306 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:17:53.308 DEBUG party_apply frame  cap=22  det=74  recog=5  total=101ms  found=True  score=0.94  scale=1.00  rows=0
+12:17:53.547 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:17:53.550 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:17:53.552 DEBUG party_apply frame  cap=27  det=59  recog=7  total=94ms  found=True  score=0.94  scale=1.00  rows=0
+12:17:53.817 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:17:53.817 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:17:53.819 DEBUG party_apply frame  cap=26  det=60  recog=4  total=91ms  found=True  score=0.94  scale=1.00  rows=0
+12:17:54.053 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:17:54.054 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:17:54.056 DEBUG party_apply frame  cap=26  det=59  recog=5  total=91ms  found=True  score=0.94  scale=1.00  rows=0
+12:17:54.331 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:17:54.333 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:17:54.336 DEBUG party_apply frame  cap=28  det=90  recog=6  total=124ms  found=True  score=0.94  scale=1.00  rows=0
+12:17:54.551 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:17:54.553 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:17:54.554 DEBUG party_apply frame  cap=25  det=60  recog=4  total=89ms  found=True  score=0.94  scale=1.00  rows=0
+12:17:54.876 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:17:54.879 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:17:54.880 DEBUG party_apply frame  cap=107  det=61  recog=5  total=173ms  found=True  score=0.94  scale=1.00  rows=0
+12:17:55.048 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:17:55.049 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:17:55.051 DEBUG party_apply frame  cap=25  det=60  recog=3  total=89ms  found=True  score=0.94  scale=1.00  rows=0
+12:17:55.238 INFO PaddleOCR reader initialized (PP-OCRv5 rec_model=en_PP-OCRv5_mobile_rec profile=mobile)
+12:17:55.298 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:17:55.301 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:17:55.303 DEBUG party_apply frame  cap=26  det=60  recog=6  total=93ms  found=True  score=0.94  scale=1.00  rows=0
+12:17:55.546 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:17:55.547 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:17:55.549 DEBUG party_apply frame  cap=28  det=59  recog=5  total=92ms  found=True  score=0.94  scale=1.00  rows=0
+12:17:55.794 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:17:55.796 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:17:55.797 DEBUG party_apply frame  cap=25  det=59  recog=3  total=88ms  found=True  score=0.94  scale=1.00  rows=0
+12:17:56.039 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:17:56.040 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:17:56.040 DEBUG party_apply frame  cap=23  det=57  recog=3  total=83ms  found=True  score=0.94  scale=1.00  rows=0
+12:17:56.292 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:17:56.293 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:17:56.294 DEBUG party_apply frame  cap=25  det=56  recog=3  total=84ms  found=True  score=0.94  scale=1.00  rows=0
+12:17:56.552 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:17:56.554 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:17:56.554 DEBUG party_apply frame  cap=25  det=59  recog=3  total=87ms  found=True  score=0.94  scale=1.00  rows=0
+12:17:56.791 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:17:56.792 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:17:56.794 DEBUG party_apply frame  cap=27  det=57  recog=3  total=87ms  found=True  score=0.94  scale=1.00  rows=0
+12:17:57.045 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:17:57.049 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:17:57.050 DEBUG party_apply frame  cap=24  det=58  recog=5  total=87ms  found=True  score=0.94  scale=1.00  rows=0
+12:17:57.301 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:17:57.301 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:17:57.303 DEBUG party_apply frame  cap=26  det=59  recog=3  total=89ms  found=True  score=0.94  scale=1.00  rows=0
+12:17:57.550 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:17:57.551 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:17:57.553 DEBUG party_apply frame  cap=28  det=62  recog=3  total=93ms  found=True  score=0.94  scale=1.00  rows=0
+12:17:57.790 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:17:57.791 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:17:57.791 DEBUG party_apply frame  cap=25  det=57  recog=3  total=85ms  found=True  score=0.94  scale=1.00  rows=0
+12:17:58.037 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:17:58.038 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:17:58.039 DEBUG party_apply frame  cap=25  det=53  recog=3  total=82ms  found=True  score=0.94  scale=1.00  rows=0
+12:17:58.287 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:17:58.288 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:17:58.289 DEBUG party_apply frame  cap=25  det=51  recog=3  total=80ms  found=True  score=0.94  scale=1.00  rows=0
+12:17:58.547 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:17:58.549 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:17:58.550 DEBUG party_apply frame  cap=21  det=64  recog=3  total=89ms  found=True  score=0.94  scale=1.00  rows=0
+12:17:58.790 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:17:58.791 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:17:58.791 DEBUG party_apply frame  cap=26  det=56  recog=4  total=86ms  found=True  score=0.94  scale=1.00  rows=0
+12:17:59.039 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:17:59.041 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:17:59.042 DEBUG party_apply frame  cap=24  det=57  recog=3  total=84ms  found=True  score=0.94  scale=1.00  rows=0
+12:17:59.294 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:17:59.295 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:17:59.297 DEBUG party_apply frame  cap=20  det=54  recog=3  total=77ms  found=True  score=0.94  scale=1.00  rows=0
+12:17:59.534 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:17:59.535 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:17:59.537 DEBUG party_apply frame  cap=24  det=51  recog=3  total=78ms  found=True  score=0.94  scale=1.00  rows=0
+12:17:59.787 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:17:59.787 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:17:59.789 DEBUG party_apply frame  cap=22  det=55  recog=3  total=80ms  found=True  score=0.94  scale=1.00  rows=0
+12:18:00.050 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:00.051 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:18:00.052 DEBUG party_apply frame  cap=26  det=56  recog=4  total=87ms  found=True  score=0.94  scale=1.00  rows=0
+12:18:00.291 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:00.293 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:18:00.293 DEBUG party_apply frame  cap=26  det=53  recog=3  total=82ms  found=True  score=0.94  scale=1.00  rows=0
+12:18:00.534 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:00.536 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:18:00.536 DEBUG party_apply frame  cap=20  det=51  recog=4  total=75ms  found=True  score=0.94  scale=1.00  rows=0
+12:18:00.790 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:00.791 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:18:00.793 DEBUG party_apply frame  cap=26  det=57  recog=3  total=87ms  found=True  score=0.94  scale=1.00  rows=0
+12:18:01.039 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:01.040 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:18:01.042 DEBUG party_apply frame  cap=23  det=52  recog=3  total=78ms  found=True  score=0.94  scale=1.00  rows=0
+12:18:01.294 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:01.296 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:18:01.297 DEBUG party_apply frame  cap=24  det=56  recog=3  total=84ms  found=True  score=0.94  scale=1.00  rows=0
+12:18:01.539 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:01.541 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:18:01.541 DEBUG party_apply frame  cap=25  det=55  recog=3  total=83ms  found=True  score=0.94  scale=1.00  rows=0
+12:18:01.787 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:01.787 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:18:01.789 DEBUG party_apply frame  cap=22  det=55  recog=3  total=81ms  found=True  score=0.94  scale=1.00  rows=0
+12:18:02.049 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:02.051 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:18:02.051 DEBUG party_apply frame  cap=25  det=58  recog=3  total=87ms  found=True  score=0.94  scale=1.00  rows=0
+12:18:02.283 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:02.284 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:18:02.286 DEBUG party_apply frame  cap=23  det=53  recog=3  total=79ms  found=True  score=0.94  scale=1.00  rows=0
+12:18:02.542 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:02.544 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:18:02.545 DEBUG party_apply frame  cap=24  det=57  recog=3  total=85ms  found=True  score=0.94  scale=1.00  rows=0
+12:18:02.784 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:02.787 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:18:02.787 DEBUG party_apply frame  cap=25  det=51  recog=3  total=79ms  found=True  score=0.94  scale=1.00  rows=0
+12:18:03.047 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:03.049 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:18:03.050 DEBUG party_apply frame  cap=24  det=59  recog=5  total=88ms  found=True  score=0.94  scale=1.00  rows=0
+12:18:03.297 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:03.297 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:18:03.299 DEBUG party_apply frame  cap=21  det=56  recog=3  total=80ms  found=True  score=0.94  scale=1.00  rows=0
+12:18:03.533 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:03.534 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:18:03.536 DEBUG party_apply frame  cap=23  det=50  recog=3  total=77ms  found=True  score=0.94  scale=1.00  rows=0
+12:18:03.800 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:03.802 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:18:03.803 DEBUG party_apply frame  cap=34  det=58  recog=3  total=95ms  found=True  score=0.94  scale=1.00  rows=0
+12:18:04.047 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:04.050 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:18:04.050 DEBUG party_apply frame  cap=27  det=57  recog=3  total=87ms  found=True  score=0.94  scale=1.00  rows=0
+12:18:04.291 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:04.291 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:18:04.293 DEBUG party_apply frame  cap=26  det=53  recog=3  total=83ms  found=True  score=0.94  scale=1.00  rows=0
+12:18:04.548 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:04.549 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:18:04.549 DEBUG party_apply frame  cap=23  det=57  recog=3  total=84ms  found=True  score=0.94  scale=1.00  rows=0
+12:18:04.788 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:04.790 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:18:04.791 DEBUG party_apply frame  cap=27  det=54  recog=3  total=84ms  found=True  score=0.94  scale=1.00  rows=0
+12:18:05.040 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:05.042 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:18:05.042 DEBUG party_apply frame  cap=29  det=52  recog=3  total=83ms  found=True  score=0.94  scale=1.00  rows=0
+12:18:05.296 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:05.296 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:18:05.298 DEBUG party_apply frame  cap=21  det=55  recog=3  total=79ms  found=True  score=0.94  scale=1.00  rows=0
+12:18:05.551 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:05.553 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:18:05.554 DEBUG party_apply frame  cap=33  det=59  recog=3  total=96ms  found=True  score=0.94  scale=1.00  rows=0
+12:18:05.790 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:05.791 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:18:05.792 DEBUG party_apply frame  cap=23  det=56  recog=4  total=83ms  found=True  score=0.94  scale=1.00  rows=0
+12:18:06.041 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:06.043 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:18:06.044 DEBUG party_apply frame  cap=22  det=59  recog=3  total=85ms  found=True  score=0.94  scale=1.00  rows=0
+12:18:06.299 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:06.300 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:18:06.301 DEBUG party_apply frame  cap=26  det=61  recog=4  total=91ms  found=True  score=0.94  scale=1.00  rows=0
+12:18:06.541 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:06.544 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:18:06.546 DEBUG party_apply frame  cap=25  det=56  recog=4  total=85ms  found=True  score=0.94  scale=1.00  rows=0
+12:18:06.790 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:06.791 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:18:06.793 DEBUG party_apply frame  cap=27  det=56  recog=4  total=86ms  found=True  score=0.94  scale=1.00  rows=0
+12:18:07.053 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:07.054 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:18:07.056 DEBUG party_apply frame  cap=30  det=60  recog=3  total=93ms  found=True  score=0.94  scale=1.00  rows=0
+12:18:07.300 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:07.301 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:18:07.303 DEBUG party_apply frame  cap=23  det=57  recog=3  total=84ms  found=True  score=0.94  scale=1.00  rows=0
+12:18:07.548 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:07.548 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:18:07.549 DEBUG party_apply frame  cap=30  det=59  recog=4  total=92ms  found=True  score=0.94  scale=1.00  rows=0
+12:18:07.794 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:07.795 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:18:07.797 DEBUG party_apply frame  cap=26  det=57  recog=4  total=87ms  found=True  score=0.94  scale=1.00  rows=0
+12:18:08.040 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:08.042 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:18:08.044 DEBUG party_apply frame  cap=26  det=58  recog=3  total=88ms  found=True  score=0.94  scale=1.00  rows=0
+12:18:08.301 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:08.302 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:18:08.302 DEBUG party_apply frame  cap=31  det=57  recog=3  total=91ms  found=True  score=0.94  scale=1.00  rows=0
+12:18:08.561 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:08.562 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:18:08.564 DEBUG party_apply frame  cap=36  det=58  recog=4  total=98ms  found=True  score=0.94  scale=1.00  rows=0
+12:18:08.789 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:08.790 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:18:08.791 DEBUG party_apply frame  cap=26  det=55  recog=4  total=85ms  found=True  score=0.94  scale=1.00  rows=0
+12:18:09.047 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:09.049 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:18:09.049 DEBUG party_apply frame  cap=26  det=57  recog=4  total=87ms  found=True  score=0.94  scale=1.00  rows=0
+12:18:09.295 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:09.297 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:18:09.299 DEBUG party_apply frame  cap=30  det=57  recog=3  total=90ms  found=True  score=0.94  scale=1.00  rows=0
+12:18:09.541 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:09.543 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:18:09.544 DEBUG party_apply frame  cap=27  det=55  recog=3  total=85ms  found=True  score=0.94  scale=1.00  rows=0
+12:18:09.790 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:09.791 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:18:09.793 DEBUG party_apply frame  cap=25  det=56  recog=3  total=84ms  found=True  score=0.94  scale=1.00  rows=0
+12:18:10.049 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:10.050 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:18:10.052 DEBUG party_apply frame  cap=24  det=59  recog=3  total=86ms  found=True  score=0.94  scale=1.00  rows=0
+12:18:10.295 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:10.295 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:18:10.297 DEBUG party_apply frame  cap=26  det=57  recog=4  total=86ms  found=True  score=0.94  scale=1.00  rows=0
+12:18:10.547 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:10.547 DEBUG row 1 gate REJECT no-action bright=711 transitions=524 fame_bright=290 fame_trans=216 name_bright=635 name_trans=470
+12:18:10.549 DEBUG party_apply frame  cap=28  det=57  recog=4  total=89ms  found=True  score=0.94  scale=1.00  rows=0
+12:18:10.799 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:10.800 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:10.802 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:12.001 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:12.001 DEBUG party_apply frame  cap=32  det=58  recog=1202  total=1293ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:12.135 INFO jobs index loaded: 271 total keys (60 'neo*', 211 base)
+12:18:12.137 INFO   neo* keys: neoasura, neoavenger, neobattlemage, neoberserker, neoblademaster, neoblitz, neobloodmage, neobrawler, neochaos, neochimera, neocreator, neocrusader, neodarkknight, neodarktemplar, neodemonslayer, neodimensionwalker, neodragonknight, neodragoon, neoelementalbomber, neoelementalist, neoelvenknight, neoenchantress, neoexorcist, neoghostblade, neoglacialmaster, neograppler, neohitman, neohunter, neoimpaler, neoinquisitor, neokunoichi, neolauncher, neolightbringer, neomechanic, neomistress, neomonk, neomuse, neonecromancer, neonenmaster, neoparamedic, neoranger, neorogue, neosecretagent, neoshadowdancer, neoshaman, neoskirmisher, neosoulbender, neospecialist, neospectre, neospitfire, neostriker, neosummoner, neoswiftmaster, neoswordmaster, neotraveler, neotroubleshooter, neovagabond, neovanguard, neovigilante, neowitch
+12:18:12.137 INFO   sample base keys: abbadon, agent, aiolos, alcyone, archangel, archer, archmage, armada, ascendant, astarte, asura, avenger, awakening1, awakening2, battlemage, bellatrix, berserker, bigboss, blackmaiden, blackwidow
+12:18:12.259 DEBUG   search fame=[75325..75525] jobId=dbbdf2dd growId=ec6a93f4 allGrow=False → 5 rows
+12:18:12.259 INFO api  fame=75425 Archer/Neo: Vigilante ±100  class='DNeo: Vigilante' name='DrazVig'  → matched 'DrazVigil'
+12:18:12.259 INFO        cand: name=DrazVigil            fame=75425  server=cain     grow=Neo: Vigilante          sim=0.88
+12:18:12.259 INFO commit canonical='DrazVigil' → dfogang
+12:18:12.299 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:12.300 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:12.301 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:12.304 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:12.306 DEBUG party_apply frame  cap=29  det=57  recog=8  total=94ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:12.549 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:12.551 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:12.551 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:12.555 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:12.555 DEBUG party_apply frame  cap=25  det=55  recog=7  total=88ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:12.797 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:12.798 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:12.799 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:12.804 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:12.804 DEBUG party_apply frame  cap=30  det=59  recog=8  total=97ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:12.861 INFO dfogang  'DrazVigil' → score=7.00M buffer=False fame=74725
+12:18:13.046 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:13.047 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:13.049 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:13.454 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:13.454 DEBUG party_apply frame  cap=27  det=55  recog=410  total=492ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:13.541 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:13.541 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:13.542 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:13.547 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:13.547 DEBUG party_apply frame  cap=27  det=57  recog=7  total=91ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:13.792 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:13.794 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:13.795 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:13.800 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:13.800 DEBUG party_apply frame  cap=28  det=56  recog=9  total=93ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:14.037 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:14.037 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:14.039 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:14.044 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:14.044 DEBUG party_apply frame  cap=25  det=55  recog=7  total=88ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:14.306 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:14.307 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:14.309 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:14.314 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:14.314 DEBUG party_apply frame  cap=35  det=62  recog=7  total=104ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:14.539 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:14.540 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:14.541 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:14.546 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:14.546 DEBUG party_apply frame  cap=26  det=54  recog=8  total=88ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:14.790 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:14.791 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:14.793 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:14.798 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:14.798 DEBUG party_apply frame  cap=27  det=55  recog=8  total=90ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:15.049 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:15.050 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:15.051 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:15.056 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:15.056 DEBUG party_apply frame  cap=27  det=58  recog=8  total=93ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:15.294 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:15.296 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:15.297 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:15.301 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:15.301 DEBUG party_apply frame  cap=24  det=56  recog=7  total=87ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:15.547 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:15.549 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:15.550 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:15.552 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:15.554 DEBUG party_apply frame  cap=32  det=55  recog=7  total=94ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:15.801 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:15.803 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:15.804 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:15.809 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:15.810 DEBUG party_apply frame  cap=26  det=60  recog=8  total=93ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:16.042 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:16.044 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:16.045 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:16.049 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:16.050 DEBUG party_apply frame  cap=29  det=57  recog=7  total=93ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:16.289 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:16.289 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:16.291 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:16.295 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:16.295 DEBUG party_apply frame  cap=27  det=56  recog=7  total=90ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:16.546 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:16.547 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:16.549 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:16.554 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:16.554 DEBUG party_apply frame  cap=23  det=60  recog=10  total=93ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:16.793 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:16.794 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:16.794 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:16.800 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:16.800 DEBUG party_apply frame  cap=28  det=57  recog=8  total=93ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:17.046 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:17.048 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:17.049 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:17.053 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:17.053 DEBUG party_apply frame  cap=25  det=56  recog=9  total=90ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:18.475 INFO hint lost — falling back to cold scan next frame
+12:18:18.475 DEBUG party_apply frame  cap=26  det=1234  recog=0  total=1261ms  found=False  score=0.36  scale=0.46  rows=0
+12:18:18.477 INFO party_apply STATE found -> lost after 25.82s
+12:18:19.926 DEBUG party_apply frame  cap=33  det=1188  recog=0  total=1221ms  found=False  score=0.27  scale=0.88  rows=0
+12:18:21.219 DEBUG party_apply frame  cap=23  det=1230  recog=0  total=1253ms  found=False  score=0.29  scale=0.80  rows=0
+12:18:22.502 DEBUG party_apply frame  cap=25  det=1022  recog=0  total=1047ms  found=False  score=0.26  scale=0.88  rows=0
+12:18:22.808 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:22.810 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:22.811 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:22.815 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:22.816 DEBUG party_apply frame  cap=28  det=73  recog=8  total=109ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:22.817 INFO party_apply STATE lost -> found after 4.34s
+12:18:23.052 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:23.054 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:23.055 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:23.059 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:23.060 DEBUG party_apply frame  cap=30  det=59  recog=7  total=96ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:23.305 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:23.307 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:23.308 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:23.311 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:23.311 DEBUG party_apply frame  cap=27  det=59  recog=8  total=94ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:23.541 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:23.541 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:23.542 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:23.547 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:23.547 DEBUG party_apply frame  cap=25  det=57  recog=7  total=90ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:23.818 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:23.820 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:23.821 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:23.824 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:23.826 DEBUG party_apply frame  cap=31  det=61  recog=8  total=100ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:24.067 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:24.069 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:24.069 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:24.074 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:24.074 DEBUG party_apply frame  cap=27  det=58  recog=8  total=94ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:24.308 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:24.309 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:24.311 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:24.315 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:24.315 DEBUG party_apply frame  cap=28  det=57  recog=9  total=94ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:24.568 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:24.570 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:24.571 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:24.574 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:24.575 DEBUG party_apply frame  cap=30  det=61  recog=7  total=99ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:24.805 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:24.807 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:24.808 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:24.813 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:24.813 DEBUG party_apply frame  cap=25  det=56  recog=8  total=90ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:25.061 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:25.061 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:25.063 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:25.067 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:25.067 DEBUG party_apply frame  cap=26  det=59  recog=7  total=92ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:25.306 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:25.307 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:25.309 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:25.312 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:25.312 DEBUG party_apply frame  cap=24  det=58  recog=7  total=90ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:25.560 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:25.562 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:25.563 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:25.566 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:25.568 DEBUG party_apply frame  cap=29  det=56  recog=7  total=92ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:25.809 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:25.809 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:25.811 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:25.815 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:25.817 DEBUG party_apply frame  cap=27  det=56  recog=8  total=91ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:26.050 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:26.051 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:26.053 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:26.056 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:26.056 DEBUG party_apply frame  cap=23  det=55  recog=7  total=86ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:26.315 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:26.316 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:26.318 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:26.321 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:26.321 DEBUG party_apply frame  cap=31  det=56  recog=8  total=95ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:26.568 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:26.570 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:26.571 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:26.576 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:26.576 DEBUG party_apply frame  cap=27  det=62  recog=7  total=97ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:26.800 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:26.801 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:26.803 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:26.807 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:26.807 DEBUG party_apply frame  cap=22  det=55  recog=8  total=84ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:27.069 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:27.072 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:27.072 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:27.076 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:27.076 DEBUG party_apply frame  cap=34  det=56  recog=7  total=98ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:27.281 INFO LiveDemo close requested
+12:18:27.282 DEBUG capture close (ignored): '_thread._local' object has no attribute 'bmp'
+12:18:27.310 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:27.311 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:27.311 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:33.141 INFO LiveDemo init  ui_scale=1.000  interval=250ms  monitor=None  window_title='Dungeon Fighter Online'  log_dir=C:\Users\Noble\AppData\Local\DFOGANG_RaidHelper
+12:18:33.497 INFO loading templates for detected scale 0.700 (key 0.70)
+12:18:33.566 INFO loading templates for detected scale 0.500 (key 0.50)
+12:18:33.633 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:33.633 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:33.634 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:33.638 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:33.638 DEBUG party_apply frame  cap=29  det=71  recog=6  total=242ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:33.638 INFO party_apply STATE lost -> found after 0.50s
+12:18:33.741 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:33.742 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:33.744 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:33.747 INFO jobs index loaded: 271 total keys (60 'neo*', 211 base)
+12:18:33.747 INFO   neo* keys: neoasura, neoavenger, neobattlemage, neoberserker, neoblademaster, neoblitz, neobloodmage, neobrawler, neochaos, neochimera, neocreator, neocrusader, neodarkknight, neodarktemplar, neodemonslayer, neodimensionwalker, neodragonknight, neodragoon, neoelementalbomber, neoelementalist, neoelvenknight, neoenchantress, neoexorcist, neoghostblade, neoglacialmaster, neograppler, neohitman, neohunter, neoimpaler, neoinquisitor, neokunoichi, neolauncher, neolightbringer, neomechanic, neomistress, neomonk, neomuse, neonecromancer, neonenmaster, neoparamedic, neoranger, neorogue, neosecretagent, neoshadowdancer, neoshaman, neoskirmisher, neosoulbender, neospecialist, neospectre, neospitfire, neostriker, neosummoner, neoswiftmaster, neoswordmaster, neotraveler, neotroubleshooter, neovagabond, neovanguard, neovigilante, neowitch
+12:18:33.747 INFO   sample base keys: abbadon, agent, aiolos, alcyone, archangel, archer, archmage, armada, ascendant, astarte, asura, avenger, awakening1, awakening2, battlemage, bellatrix, berserker, bigboss, blackmaiden, blackwidow
+12:18:33.749 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:33.749 DEBUG party_apply frame  cap=30  det=65  recog=8  total=103ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:33.850 DEBUG   search fame=[75325..75525] jobId=dbbdf2dd growId=ec6a93f4 allGrow=False → 5 rows
+12:18:33.850 INFO api  fame=75425 Archer/Neo: Vigilante ±100  class='DNeo: Vigilante' name='DrazVig'  → matched 'DrazVigil'
+12:18:33.850 INFO        cand: name=DrazVigil            fame=75425  server=cain     grow=Neo: Vigilante          sim=0.88
+12:18:33.850 INFO commit canonical='DrazVigil' → dfogang
+12:18:33.979 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:33.980 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:33.981 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:33.984 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:33.984 DEBUG party_apply frame  cap=21  det=55  recog=6  total=82ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:34.236 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:34.237 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:34.237 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:34.240 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:34.240 DEBUG party_apply frame  cap=24  det=63  recog=7  total=95ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:34.263 INFO dfogang  'DrazVigil' → score=7.85M buffer=False fame=75425
+12:18:34.477 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:34.477 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:34.479 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:34.483 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:34.483 DEBUG party_apply frame  cap=27  det=56  recog=7  total=90ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:34.978 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:34.980 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:34.980 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:34.983 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:34.984 DEBUG party_apply frame  cap=22  det=56  recog=6  total=85ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:35.237 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:35.238 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:35.239 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:35.242 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:35.242 DEBUG party_apply frame  cap=26  det=66  recog=6  total=99ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:35.477 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:35.478 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:35.479 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:35.483 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:35.483 DEBUG party_apply frame  cap=25  det=55  recog=7  total=88ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:35.717 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:35.719 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:35.720 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804
+12:18:35.741 INFO row 2  fame= 75425 (raw='75,425' conf=1.00)  class='Vigilante' (raw='DNeo: Vigilante' conf=1.00)
+12:18:35.742 DEBUG party_apply frame  cap=19  det=53  recog=25  total=97ms  found=True  score=0.94  scale=1.00  rows=1
+12:18:35.952 INFO LiveDemo close requested
+12:18:35.954 DEBUG capture close (ignored): '_thread._local' object has no attribute 'bmp'
+12:18:35.973 DEBUG row 0 gate REJECT no-action bright=709 transitions=476 fame_bright=288 fame_trans=202 name_bright=632 name_trans=422
+12:18:35.974 DEBUG row 1 gate REJECT no-action bright=698 transitions=520 fame_bright=283 fame_trans=214 name_bright=627 name_trans=466
+12:18:35.974 DEBUG row 2 gate PASS bright=1837 transitions=1006 fame_bright=809 fame_trans=365 name_bright=1489 name_trans=804

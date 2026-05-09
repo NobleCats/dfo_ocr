@@ -15,7 +15,7 @@ from __future__ import annotations
 import logging
 import re
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import cv2
@@ -107,6 +107,7 @@ REF_ADVENTURE_X = (42, 162)
 REF_FAME_X = (200, 295)
 REF_NAME_X = (282, 442)
 REF_CLASS_X = (282, 442)
+REF_STATUS_X = (445, 620)
 
 REF_FIXED_PREFIX_NAME = "Lv. 115 "
 REF_FIXED_PREFIX_CLASS_REGEX = re.compile(r"^[A-Za-z]?Neo[: ]\s*")
@@ -136,6 +137,8 @@ ROW_GATE_MIN_NAME_TRANSITIONS = 45
 # empty, do not keep scanning down into unrelated game UI/background.
 ROW_GATE_MAX_INITIAL_EMPTY_ROWS = 4
 MAX_OCR_PER_FRAME = 3
+ROW_GATE_MIN_ACTION_PIXELS = 14
+ROW_OCR_CACHE_CAP = 128
 
 _DEFAULT_MARKER_PATH = resource_path("markers", "party_apply", "column_header_69pct.png")
 _OPTIONAL_MARKER_PATHS = (
@@ -185,6 +188,64 @@ class PartyApplyRow:
 
         return True
 
+
+
+_ROW_OCR_CACHE: dict[bytes, PartyApplyRow] = {}
+
+
+def _cache_party_apply_row(sig: bytes, row: PartyApplyRow) -> None:
+    if len(_ROW_OCR_CACHE) >= ROW_OCR_CACHE_CAP:
+        _ROW_OCR_CACHE.pop(next(iter(_ROW_OCR_CACHE)))
+    _ROW_OCR_CACHE[sig] = row
+
+
+def _row_mask_signature(image_rgb: np.ndarray, rects: list[tuple[int, int, int, int]]) -> bytes:
+    """Stable-ish row signature based on text/button masks, not raw pixels.
+
+    The request window is translucent, so raw crop bytes change as the animated
+    game scene moves behind it. Thresholded/resized masks are stable enough to
+    cache repeated OCR of the same applicant row while still changing when the
+    row contents change.
+    """
+    H, W = image_rgb.shape[:2]
+    parts: list[bytes] = []
+    for x0, y0, x1, y1 in rects:
+        x0, x1 = max(0, x0), min(W, x1)
+        y0, y1 = max(0, y0), min(H, y1)
+        if x1 - x0 < 4 or y1 - y0 < 4:
+            parts.append(b"")
+            continue
+        crop = image_rgb[y0:y1, x0:x1]
+        gray = crop.max(axis=2)
+        bg = float(np.percentile(gray, 25))
+        mask = (gray > bg + 55).astype(np.uint8) * 255
+        small = cv2.resize(mask, (64, 16), interpolation=cv2.INTER_AREA)
+        parts.append(small.tobytes())
+    return b"|".join(parts)
+
+
+def _has_pending_action_button(image_rgb: np.ndarray, x_range: tuple[int, int], y_range: tuple[int, int], scale: float) -> bool:
+    """Cheap check for the Accept/Decline button area.
+
+    Empty slots such as "Click a slot to remove" have text in the row and can
+    pass the generic glyph-transition gate, but they do not have the blue/brown
+    action buttons that pending applicants have.
+    """
+    H, W = image_rgb.shape[:2]
+    x0, x1 = max(0, x_range[0]), min(W, x_range[1])
+    y0, y1 = max(0, y_range[0]), min(H, y_range[1])
+    if x1 - x0 < 8 or y1 - y0 < 8:
+        return False
+    crop = image_rgb[y0:y1, x0:x1]
+    r = crop[:, :, 0].astype(np.int16)
+    g = crop[:, :, 1].astype(np.int16)
+    b = crop[:, :, 2].astype(np.int16)
+
+    # Blue Accept button and orange/brown Decline button in RGB space.
+    blue = (b > 80) & (g > 35) & (r < 90) & ((b - r) > 35)
+    orange = (r > 90) & (g > 45) & (b < 90) & ((r - b) > 35)
+    min_pixels = max(6, int(round(ROW_GATE_MIN_ACTION_PIXELS * max(0.45, scale) * max(0.45, scale))))
+    return int(blue.sum()) >= min_pixels or int(orange.sum()) >= min_pixels
 
 # ---------------------------------------------------------------------------
 # Detection
@@ -339,7 +400,7 @@ def detect_party_apply(
 ) -> PartyApplyDetection:
     """Locate the party-apply window in ``image_rgb``.
 
-    v8q keeps v8m/v8n's false-positive controls and adaptive hot-scale caching.
+    v8r keeps v8m/v8n's false-positive controls and adaptive hot-scale caching.
     For arbitrary 1%-step UI Scale values, it does not try to map percent to
     pixels. It uses real 0% and 100% marker widths as bounds, then resizes
     the 100% marker across that width interval in a rotating midpoint-first
@@ -699,6 +760,7 @@ def recognize_party_apply(
 
     fame_left_for_check = _col(REF_FAME_X[0])
     name_right_for_check = _col(REF_NAME_X[1])
+    status_x = (_col(REF_STATUS_X[0]), _col(REF_STATUS_X[1]))
 
     ocr_rows_used = 0
 
@@ -770,6 +832,15 @@ def recognize_party_apply(
                     break
                 continue
 
+            if not _has_pending_action_button(image_rgb, status_x, (row_top, check_y1), s):
+                _logger.debug(
+                    "row %d gate REJECT no-action bright=%d transitions=%d fame_bright=%d fame_trans=%d name_bright=%d name_trans=%d",
+                    i, bright_count, transitions, fame_bright, fame_trans, name_bright, name_trans,
+                )
+                if _mark_empty():
+                    break
+                continue
+
             _logger.debug(
                 "row %d gate PASS bright=%d transitions=%d fame_bright=%d fame_trans=%d name_bright=%d name_trans=%d",
                 i, bright_count, transitions, fame_bright, fame_trans, name_bright, name_trans,
@@ -807,6 +878,24 @@ def recognize_party_apply(
             fame_x[0] + int(round((FAME_STAR_ICON_RIGHT_PAD - FAME_DIGIT_LEFT_BREATHING) * s)),
             fame_x[1] + int(round(FAME_DIGIT_RIGHT_BREATHING * s)),
         )
+
+        row_sig = _row_mask_signature(
+            image_rgb,
+            [
+                (fame_x_dig[0], top_y0, fame_x_dig[1], top_y1),
+                (name_x[0], name_y0, name_x[1], name_y1),
+                (class_x[0], bot_y0, class_x[1], bot_y1),
+                (status_x[0], row_top, status_x[1], bot_y1),
+            ],
+        )
+        cached_row = _ROW_OCR_CACHE.get(row_sig)
+        if cached_row is not None:
+            row = replace(cached_row, index=i, y_abs=(top_y0, bot_y1))
+            if not row.is_empty:
+                empties_since_real = 0
+                out.append(row)
+                continue
+
         fame_value, fame_text, fame_score = _read_fame(
             image_rgb,
             fame_x_dig,
@@ -851,6 +940,7 @@ def recognize_party_apply(
             continue
 
         empties_since_real = 0
+        _cache_party_apply_row(row_sig, row)
         out.append(row)
 
     return out
