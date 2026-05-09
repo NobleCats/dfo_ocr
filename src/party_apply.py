@@ -83,6 +83,8 @@ _logger = logging.getLogger("dfogang.party_apply")
 # supported UI scales (0/50/69/100). The expensive all-scale sweep is fallback
 # only and is throttled while the window is closed.
 PA_COLD_CANDIDATES_PER_FRAME = 6
+PA_ADAPTIVE_HOT_SCALE_MAX = 8
+PA_ADAPTIVE_HOT_SCALE_EPS = 0.015
 
 # Geometry measured from samples/party_apply_03.png at UI Scale 69%.
 REF_MARKER_SIZE = (734, 16)  # marker (column header strip) WxH
@@ -291,14 +293,10 @@ def detect_party_apply(
 ) -> PartyApplyDetection:
     """Locate the party-apply window in ``image_rgb``.
 
-    This version keeps cold detection bounded. It never performs an entire
-    marker x scale sweep in one frame. Instead it probes a small number of
-    high-priority marker/scale candidates per call and advances a cursor.
-
-    Fast path order:
-    1. previous hint local lookup,
-    2. known-scale probes when a previous scale exists,
-    3. rotating cold candidate probes for supported/common UI scales.
+    v8n keeps v8m's false-positive controls and adds adaptive hot-scale caching.
+    UI Scale rarely changes during normal use. Once a non-native/intermediate
+    scale succeeds, subsequent cold/reopen scans probe that effective scale
+    before the rotating continuous fallback.
     """
     img_gray = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2GRAY)
     marker_grays = (
@@ -307,6 +305,22 @@ def detect_party_apply(
         else [cv2.cvtColor(m, cv2.COLOR_RGB2GRAY) for m in _load_markers()]
     )
     H, W = img_gray.shape
+
+    def _remember_success_scale(scale: float) -> None:
+        scale = float(scale)
+        if not (0.25 <= scale <= 2.20):
+            return
+        hot = list(getattr(detect_party_apply, "_adaptive_hot_scales", []))
+        if any(abs(scale - s) <= PA_ADAPTIVE_HOT_SCALE_EPS for s in hot):
+            return
+        hot.insert(0, scale)
+        del hot[PA_ADAPTIVE_HOT_SCALE_MAX:]
+        setattr(detect_party_apply, "_adaptive_hot_scales", hot)
+
+    def _return(cand: PartyApplyDetection) -> PartyApplyDetection:
+        if cand.found:
+            _remember_success_scale(cand.scale)
+        return cand
 
     if hint is not None and hint.found:
         best_hint: PartyApplyDetection | None = None
@@ -323,7 +337,7 @@ def detect_party_apply(
             if cand is not None and (best_hint is None or cand.score > best_hint.score):
                 best_hint = cand
         if best_hint is not None:
-            return best_hint
+            return _return(best_hint)
 
     def _scan_pair(marker_gray: np.ndarray, resize_scale: float) -> PartyApplyDetection:
         return _scan_scales([float(resize_scale)], img_gray, marker_gray, score_threshold, max_rows, H, W)
@@ -361,43 +375,50 @@ def detect_party_apply(
                 out.append(v)
         return tuple(out)
 
+    def _scan_effective(target: float) -> PartyApplyDetection:
+        marker_gray = _best_marker_for_effective_scale(float(target))
+        resize_scale = _resize_for_effective_scale(marker_gray, float(target))
+        return _scan_pair(marker_gray, resize_scale)
+
     # Always probe every available marker at its native size before using a
-    # remembered near_scale. This is important when the user changes DFO UI
-    # Scale during the same app session: app.py may still pass near_scale=0.66
-    # from a prior 0% detection, but the new 50%/100% marker can match
-    # perfectly at native size.
+    # remembered scale. This keeps explicit 0/50/100 marker hits instant and
+    # prevents stale near_scale from blocking a UI Scale change during testing.
     native_best = PartyApplyDetection(False, 0.0, 1.0, (0, 0, 0, 0), [])
     for marker_gray in marker_grays:
         cand = _scan_pair(marker_gray, 1.0)
-        if (
-            (cand.found and not native_best.found)
-            or (cand.found == native_best.found and cand.score > native_best.score)
-        ):
-            native_best = cand
+        native_best = _better(native_best, cand)
         if cand.found and cand.score >= 0.90:
-            return cand
+            return _return(cand)
 
-    # If app.py has a remembered scale, probe it first, but do not stop there
-    # on failure. DFO UI Scale can be changed inside the same app session, so a
-    # stale 0% near_scale must not prevent 50%/100% or intermediate scales from
-    # being probed.
     best = native_best
+
+    # Adaptive hot scales: if an intermediate UI scale succeeded once in this
+    # process, probe it before stale near_scale and before the rotating fallback.
+    # This is the normal-use optimization: UI Scale is set once and rarely
+    # changes, so reopen/move recovery becomes similar to native marker hits.
+    hot_scales = list(getattr(detect_party_apply, "_adaptive_hot_scales", []))
+    for target in hot_scales[:PA_COLD_CANDIDATES_PER_FRAME]:
+        cand = _scan_effective(float(target))
+        best = _better(best, cand)
+        if cand.found:
+            return _return(cand)
+
+    # If app.py has a remembered scale, probe it next, but do not stop there on
+    # failure. UI Scale can still be changed in edge-case tests.
     if near_scale is not None:
-        best_marker = _best_marker_for_effective_scale(float(near_scale))
-        offsets = (-near_scale_radius, -0.06, -0.03, 0.0, 0.03, 0.06, near_scale_radius)
+        offsets = (0.0, -0.03, 0.03, -0.06, 0.06, -near_scale_radius, near_scale_radius)
         idx = int(getattr(detect_party_apply, "_near_scale_probe_idx", 0)) % len(offsets)
         setattr(detect_party_apply, "_near_scale_probe_idx", (idx + 1) % len(offsets))
 
         targets = [float(near_scale), max(min_scale, min(max_scale, float(near_scale) + offsets[idx]))]
         for target in targets:
-            scale = _resize_for_effective_scale(best_marker, target)
-            cand = _scan_pair(best_marker, scale)
+            cand = _scan_effective(target)
             best = _better(best, cand)
             if cand.found and cand.score >= 0.90:
-                return cand
+                return _return(cand)
 
-    # Cold/changed-scale path: probe a small, rotating slice of a continuous
-    # effective-scale grid. This avoids the v8 full sweep stalls while covering
+    # Cold/changed-scale path: probe a rotating slice of a continuous
+    # effective-scale grid. This keeps per-frame cost bounded while covering
     # UI Scale 0..100 in 1% increments over several frames.
     priority_effective_scales = _make_priority_effective_scales()
     idx = int(getattr(detect_party_apply, "_cold_probe_idx", 0)) % len(priority_effective_scales)
@@ -409,14 +430,12 @@ def detect_party_apply(
 
     for j in range(PA_COLD_CANDIDATES_PER_FRAME):
         target = float(priority_effective_scales[(idx + j) % len(priority_effective_scales)])
-        marker_gray = _best_marker_for_effective_scale(target)
-        scale = _resize_for_effective_scale(marker_gray, target)
-        cand = _scan_pair(marker_gray, scale)
+        cand = _scan_effective(target)
         best = _better(best, cand)
         if cand.found and cand.score >= 0.90:
-            return cand
+            return _return(cand)
 
-    return best
+    return _return(best)
 
 def _scan_scales(
     scales,
