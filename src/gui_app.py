@@ -1101,14 +1101,16 @@ class ControlWindow(QWidget):
         guide = self.guide_overlay
         if guide is None:
             return
-        # Store the guide's absolute physical screen position so that
-        # recognition can subtract the actual capture origin at runtime,
-        # regardless of which window _find_game_window_rect returns.
+        s = guide.scale
         self.manual_party_apply = {
             "enabled": True,
+            "guide_x_abs": round(float(guide.guide_x), 2),
+            "guide_y_abs": round(float(guide.guide_y), 2),
+            "guide_w": round(GUIDE_REF_WINDOW_SIZE[0] * s, 2),
+            "guide_h": round(GUIDE_REF_WINDOW_SIZE[1] * s, 2),
             "marker_x_abs": round(float(guide.marker_x), 2),
             "marker_y_abs": round(float(guide.marker_y), 2),
-            "scale": round(float(guide.scale), 4),
+            "scale": round(s, 4),
         }
         self._save_manual_party_apply()
 

@@ -252,6 +252,12 @@ class LiveDemo:
         # Set True after the first frame has been fully processed; the GUI
         # uses this to flip "LOADING" → "RUNNING".
         self._first_frame_emitted: bool = False
+        # Manual-mode guide screen capture: grabbed fresh each frame from the
+        # physical screen rect that the guide covers, so OCR always works on
+        # the actual pixels under the guide (live game OR test image on screen).
+        self._manual_sct = None
+        self._manual_guide_frame: np.ndarray | None = None
+        self._manual_guide_origin: tuple[int, int] = (0, 0)
 
         self.dfogang = DfogangClient(demo=demo_scores, neople_api_key=neople_api_key)
         self.neople = NeopleClient(api_key=neople_api_key)
@@ -573,7 +579,12 @@ class LiveDemo:
             recog_ms = 0.0
             if det.found:
                 t_recog0 = time.perf_counter()
-                rows = recognize_party_apply(frame, det)
+                # When manual mode grabbed the guide's screen region, use that
+                # frame for OCR so coordinates are guide-relative throughout.
+                ocr_frame = (self._manual_guide_frame
+                             if manual_det is not None and self._manual_guide_frame is not None
+                             else frame)
+                rows = recognize_party_apply(ocr_frame, det)
                 recog_ms = (time.perf_counter() - t_recog0) * 1000
             else:
                 rows = []
@@ -608,11 +619,17 @@ class LiveDemo:
             "found=%s  score=%.2f  scale=%.2f  rows=%d",
             cap_ms, det_ms, recog_ms, elapsed_ms, det.found, det.score,
             det.scale, len(rows))
+        # Manual mode: use the guide screen origin so overlay text is positioned
+        # relative to the guide region we grabbed, not the capture source.
+        if manual_det is not None and self._manual_guide_frame is not None:
+            result_origin = self._manual_guide_origin
+        else:
+            result_origin = getattr(self.capture, "origin_xy", (0, 0))
         self._safe_emit(self._frame_emitter.processed, {
             "mode": "party_apply",
             "det": det,
             "rows": rows,
-            "origin_xy": getattr(self.capture, "origin_xy", (0, 0)),
+            "origin_xy": result_origin,
             "elapsed_ms": elapsed_ms,
             "cap_ms": cap_ms,
             "det_ms": det_ms,
@@ -622,29 +639,51 @@ class LiveDemo:
         cfg = self.manual_party_apply
         if not cfg or not cfg.get("enabled", True):
             return None
-        # Test-image captures have no screen anchor: guide screen coords have no
-        # relationship to image pixel coords. Return None so auto detection runs
-        # and finds the correct pixel-space position from the image content.
-        if isinstance(self.capture, ImageCapture):
-            return None
         try:
             scale = float(cfg.get("scale", 1.0))
-            if "marker_x_abs" in cfg:
-                # Absolute physical screen coords; subtract the actual capture
-                # source origin to get frame-relative coordinates.
+            if "guide_x_abs" in cfg:
+                # Grab the physical screen region covered by the guide using mss.
+                # This works for any capture mode (live window, test image, screen)
+                # because we read directly from the screen pixels under the guide.
+                import mss
+                gx = int(round(float(cfg["guide_x_abs"])))
+                gy = int(round(float(cfg["guide_y_abs"])))
+                gw = int(round(float(cfg["guide_w"])))
+                gh = int(round(float(cfg["guide_h"])))
+                if self._manual_sct is None:
+                    self._manual_sct = mss.mss()
+                monitor = {"left": gx, "top": gy, "width": gw, "height": gh}
+                shot = self._manual_sct.grab(monitor)
+                import numpy as _np
+                guide_frame = _np.array(shot)[:, :, :3]  # drop alpha, keep BGR order
+                guide_frame = guide_frame[:, :, ::-1]     # BGRA→RGB? mss gives BGRA so flip to RGB
+                self._manual_guide_frame = guide_frame
+                self._manual_guide_origin = (gx, gy)
+                # Marker is always at a fixed position inside the guide frame.
+                mx_local = int(round(float(cfg["marker_x_abs"]) - gx))
+                my_local = int(round(float(cfg["marker_y_abs"]) - gy))
+                self._log.debug(
+                    "manual guide grab rect=(%d,%d,%d,%d) frame=%s marker_local=(%d,%d)",
+                    gx, gy, gw, gh, guide_frame.shape, mx_local, my_local,
+                )
+                det = build_manual_party_apply_detection(
+                    (mx_local, my_local), scale, guide_frame.shape,
+                )
+                return det if det.rows_top_y else None
+            elif "marker_x_abs" in cfg:
+                # Legacy settings without guide_x_abs: subtract capture origin.
                 origin_x, origin_y = getattr(self.capture, "origin_xy", (0, 0))
                 marker_x_rel = float(cfg["marker_x_abs"]) - origin_x
                 marker_y_rel = float(cfg["marker_y_abs"]) - origin_y
-                self._log.debug(
-                    "manual calibration abs=(%.0f,%.0f) origin=(%d,%d) → frame=(%.0f,%.0f)",
-                    float(cfg["marker_x_abs"]), float(cfg["marker_y_abs"]),
-                    origin_x, origin_y, marker_x_rel, marker_y_rel,
-                )
+                self._manual_guide_frame = None
+                self._manual_guide_origin = (origin_x, origin_y)
             else:
                 marker_x_rel = float(cfg["marker_x_rel"])
                 marker_y_rel = float(cfg["marker_y_rel"])
+                self._manual_guide_frame = None
+                self._manual_guide_origin = getattr(self.capture, "origin_xy", (0, 0))
         except Exception:
-            self._log.warning("invalid manual party_apply calibration: %s", cfg)
+            self._log.warning("invalid manual party_apply calibration: %s", cfg, exc_info=True)
             return None
         det = build_manual_party_apply_detection(
             (int(round(marker_x_rel)), int(round(marker_y_rel))),
@@ -1010,6 +1049,12 @@ class LiveDemo:
                 # mss is thread-local; closing from a different thread than
                 # grab() raises AttributeError. Harmless on shutdown.
                 self._log.debug("capture close (ignored): %s", e)
+        if self._manual_sct is not None:
+            try:
+                self._manual_sct.close()
+            except Exception:
+                pass
+            self._manual_sct = None
         # Wait for the frame worker so a stopped LiveDemo cannot overlap a new
         # one against the shared PaddleOCR predictor. This matters most in the
         # bundled EXE, where stop/start timing is slower and overlapping OCR
