@@ -11,7 +11,7 @@ from datetime import datetime
 import json
 from pathlib import Path
 
-from PyQt6.QtCore import QPoint, QRect, QRectF, QSize, Qt, QUrl, pyqtSignal
+from PyQt6.QtCore import QPoint, QRect, QRectF, QSize, Qt, QTimer, QUrl, pyqtSignal
 from PyQt6.QtGui import (
     QColor,
     QDesktopServices,
@@ -87,8 +87,12 @@ GUIDE_REF_ROW_HEIGHT = 64
 GUIDE_REF_ROW_PITCH = 74
 GUIDE_MAX_ROWS = 9
 
-MAGNET_SEARCH_PAD = 180          # px of padding around guide when searching for template
+MAGNET_SEARCH_PAD = 120          # px of padding around guide when searching for template
 MAGNET_MIN_MATCH_SCORE = 0.42    # cv2.TM_CCOEFF_NORMED threshold for confident match
+MAGNET_LIVE_INTERVAL_MS = 450
+MAGNET_SCALE_SEARCH_RADIUS_PCT = 6
+MAGNET_MAX_SCALE_DELTA = 0.035
+MAGNET_MAX_CONSISTENCY_PX = 45
 
 ACTION_BUTTON_SIZE = 36
 ACTION_ICON_SIZE = 22
@@ -684,6 +688,10 @@ class ControlWindow(QWidget):
         self._manual_mode: bool = bool(load_settings().get("manual_mode", False))
 
         self._magnet_enabled: bool = False
+        self._magnet_in_flight: bool = False
+        self._magnet_timer = QTimer(self)
+        self._magnet_timer.setInterval(MAGNET_LIVE_INTERVAL_MS)
+        self._magnet_timer.timeout.connect(self._run_magnet_live_tick)
 
         # Closed-but-not-yet-collected demos. Keep strong refs so worker
         # threads can finish final frames without touching destroyed QObjects.
@@ -820,7 +828,7 @@ class ControlWindow(QWidget):
         self.magnet_btn = QPushButton("MAG")
         self.magnet_btn.setFixedSize(48, ACTION_BUTTON_SIZE)
         self.magnet_btn.setToolTip(
-            "Find title, tab, and button anchors near the guide and snap position/scale."
+            "Snap to nearby anchors, then keep the guide following while enabled."
         )
         self.magnet_btn.clicked.connect(lambda _: self._toggle_magnet())
 
@@ -1062,6 +1070,7 @@ class ControlWindow(QWidget):
         if self.demo is not None:
             return  # cannot switch while running
         if self.guide_overlay is not None:
+            self._stop_magnet("mode-switch")
             self._sync_manual_from_guide()
             self.guide_overlay.close()
             self.guide_overlay = None
@@ -1083,6 +1092,7 @@ class ControlWindow(QWidget):
 
     def toggle_manual_guide(self) -> None:
         if self.guide_overlay is not None:
+            self._stop_magnet("guide-hidden")
             self._sync_manual_from_guide()
             self.guide_overlay.close()
             self.guide_overlay = None
@@ -1110,19 +1120,51 @@ class ControlWindow(QWidget):
 
     def _toggle_magnet(self) -> None:
         if self._magnet_enabled:
+            self._stop_magnet("button")
             return
-        _append_debug_log("manual_guide.log", "magnet clicked")
+        self._start_magnet()
+
+    def _start_magnet(self) -> None:
+        _append_debug_log("manual_guide.log", "magnet start")
+        if self.guide_overlay is None:
+            self.toggle_manual_guide()
+
         self._set_magnet_active(True)
+        ok = self._safe_run_magnet_align(allow_scale=True, live=False)
+        _append_debug_log("manual_guide.log", f"magnet initial ok={ok}")
+        if ok:
+            self._magnet_timer.start()
+        else:
+            self._stop_magnet("initial-failed")
+
+    def _stop_magnet(self, reason: str) -> None:
+        if self._magnet_timer.isActive():
+            self._magnet_timer.stop()
+        if self._magnet_enabled:
+            _append_debug_log("manual_guide.log", f"magnet stop reason={reason}")
+        self._magnet_in_flight = False
+        self._set_magnet_active(False)
+
+    def _run_magnet_live_tick(self) -> None:
+        if not self._magnet_enabled or self._magnet_in_flight:
+            return
+        if self.guide_overlay is None or not self.guide_overlay.isVisible():
+            self._stop_magnet("guide-missing")
+            return
+        self._safe_run_magnet_align(allow_scale=False, live=True)
+
+    def _safe_run_magnet_align(self, *, allow_scale: bool, live: bool) -> bool:
+        self._magnet_in_flight = True
         try:
-            ok = self._run_magnet_align()
-            _append_debug_log("manual_guide.log", f"magnet done ok={ok}")
+            return self._run_magnet_align(allow_scale=allow_scale, live=live)
         except BaseException as exc:
             _append_debug_log(
                 "manual_guide.log",
                 f"magnet crashed: {type(exc).__name__}: {exc}",
             )
+            return False
         finally:
-            self._set_magnet_active(False)
+            self._magnet_in_flight = False
 
     def _set_magnet_active(self, active: bool) -> None:
         self._magnet_enabled = active
@@ -1133,9 +1175,11 @@ class ControlWindow(QWidget):
         else:
             self.magnet_btn.setStyleSheet("")
 
-    def _run_magnet_align(self) -> bool:
+    def _run_magnet_align(self, *, allow_scale: bool = True, live: bool = False) -> bool:
         """Template-match guide anchors on screen to fine-tune position and scale."""
-        _append_debug_log("manual_guide.log", "magnet step=import")
+        verbose = not live
+        if verbose:
+            _append_debug_log("manual_guide.log", "magnet step=import")
         try:
             import cv2
             import numpy as np
@@ -1160,10 +1204,11 @@ class ControlWindow(QWidget):
         else:
             _append_debug_log("manual_guide.log", "magnet failed: no guide calibration")
             return False
-        _append_debug_log(
-            "manual_guide.log",
-            f"magnet step=geometry guide={gx:.2f},{gy:.2f} scale={current_scale:.4f}",
-        )
+        if verbose:
+            _append_debug_log(
+                "manual_guide.log",
+                f"magnet step=geometry guide={gx:.2f},{gy:.2f} scale={current_scale:.4f}",
+            )
 
         def _first_resource(*names: str) -> Path | None:
             for name in names:
@@ -1202,10 +1247,11 @@ class ControlWindow(QWidget):
         if not anchors:
             _append_debug_log("manual_guide.log", "magnet failed: no anchor templates")
             return False
-        _append_debug_log(
-            "manual_guide.log",
-            "magnet step=anchors " + ",".join(str(a["name"]) for a in anchors),
-        )
+        if verbose:
+            _append_debug_log(
+                "manual_guide.log",
+                "magnet step=anchors " + ",".join(str(a["name"]) for a in anchors),
+            )
 
         gw = GUIDE_REF_WINDOW_SIZE[0] * current_scale
         gh = GUIDE_REF_WINDOW_SIZE[1] * current_scale
@@ -1227,10 +1273,11 @@ class ControlWindow(QWidget):
                 if sw < 20 or sh < 20:
                     _append_debug_log("manual_guide.log", "magnet failed: empty search region")
                     return False
-                _append_debug_log(
-                    "manual_guide.log",
-                    f"magnet step=capture rect=({sx},{sy},{sw},{sh}) virtual=({vx},{vy},{vw},{vh})",
-                )
+                if verbose:
+                    _append_debug_log(
+                        "manual_guide.log",
+                        f"magnet step=capture rect=({sx},{sy},{sw},{sh}) virtual=({vx},{vy},{vw},{vh})",
+                    )
                 shot = sct.grab({"left": sx, "top": sy, "width": sw, "height": sh})
             search_img = np.ascontiguousarray(np.array(shot)[:, :, :3])
         except Exception as exc:
@@ -1259,11 +1306,19 @@ class ControlWindow(QWidget):
         best_guide_y = gy
         best_scale = current_scale
         best_hits: list[str] = []
+        best_hit_count = 0
         search_gray = cv2.cvtColor(search_img, cv2.COLOR_BGR2GRAY)
 
         try:
-            for pct in range(80, 121, 2):
-                s = max(0.35, min(1.8, current_scale * pct / 100.0))
+            if allow_scale:
+                scale_offsets = range(-MAGNET_SCALE_SEARCH_RADIUS_PCT, MAGNET_SCALE_SEARCH_RADIUS_PCT + 1)
+            else:
+                scale_offsets = (0,)
+
+            for pct_offset in scale_offsets:
+                s = max(0.35, min(1.8, current_scale * (100 + pct_offset) / 100.0))
+                if allow_scale and abs(s - current_scale) > MAGNET_MAX_SCALE_DELTA:
+                    continue
                 hits = []
                 for anchor, tmpl_gray in templates:
                     ref_w, ref_h = anchor["ref_size"]
@@ -1296,6 +1351,8 @@ class ControlWindow(QWidget):
                 usable = [h for h in hits if h[1] >= MAGNET_MIN_MATCH_SCORE]
                 if not usable:
                     continue
+                if allow_scale and abs(s - current_scale) > 0.001 and len(usable) < 2:
+                    continue
                 weight_sum = sum(score * weight for _, score, weight, _, _ in usable)
                 if weight_sum <= 0:
                     continue
@@ -1305,14 +1362,23 @@ class ControlWindow(QWidget):
                     ((x - guess_x) ** 2 + (y - guess_y) ** 2) ** 0.5
                     for _, _, _, x, y in usable
                 )
+                if len(usable) >= 2 and consistency > MAGNET_MAX_CONSISTENCY_PX * max(0.75, s):
+                    continue
                 avg_score = sum(score * weight for _, score, weight, _, _ in usable) / sum(weight for _, _, weight, _, _ in usable)
-                combined = avg_score + min(len(usable), 3) * 0.04 - min(consistency / 160.0, 0.45)
+                scale_penalty = abs(s - current_scale) * 1.7 if allow_scale else 0.0
+                combined = (
+                    avg_score
+                    + min(len(usable), 3) * 0.05
+                    - min(consistency / 120.0, 0.50)
+                    - scale_penalty
+                )
                 if combined > best_score:
                     best_score = combined
                     best_guide_x = guess_x
                     best_guide_y = guess_y
                     best_scale = s
                     best_hits = [f"{name}:{score:.3f}" for name, score, _, _, _ in usable]
+                    best_hit_count = len(usable)
         except Exception as exc:
             _append_debug_log(
                 "manual_guide.log",
@@ -1321,11 +1387,19 @@ class ControlWindow(QWidget):
             return False
 
         if best_score < MAGNET_MIN_MATCH_SCORE:
-            _append_debug_log(
-                "manual_guide.log",
-                f"magnet no match: score={best_score:.4f}",
-            )
+            if verbose:
+                _append_debug_log(
+                    "manual_guide.log",
+                    f"magnet no match: score={best_score:.4f}",
+                )
             return False
+
+        if not allow_scale or best_hit_count < 2:
+            best_scale = current_scale
+        else:
+            lower = current_scale - MAGNET_MAX_SCALE_DELTA
+            upper = current_scale + MAGNET_MAX_SCALE_DELTA
+            best_scale = max(lower, min(upper, best_scale))
 
         new_guide_x = float(best_guide_x)
         new_guide_y = float(best_guide_y)
@@ -1333,6 +1407,13 @@ class ControlWindow(QWidget):
         new_marker_y = new_guide_y + GUIDE_REF_MARKER_TOP_IN_WINDOW * best_scale
 
         if guide is not None:
+            if (
+                live
+                and abs(float(guide.guide_x) - new_guide_x) < 0.5
+                and abs(float(guide.guide_y) - new_guide_y) < 0.5
+                and abs(float(guide.scale) - best_scale) < 0.0005
+            ):
+                return True
             guide.guide_x = new_guide_x
             guide.guide_y = new_guide_y
             guide.scale = best_scale
@@ -1356,15 +1437,16 @@ class ControlWindow(QWidget):
             self.scale_slider.setValue(int(round(s * 100)))
             self.scale_slider.blockSignals(False)
 
-        _append_debug_log(
-            "manual_guide.log",
-            (
-                f"magnet matched score={best_score:.4f} "
-                f"guide={new_guide_x:.2f},{new_guide_y:.2f} "
-                f"marker={new_marker_x:.2f},{new_marker_y:.2f} "
-                f"scale={best_scale:.4f} hits={best_hits}"
-            ),
-        )
+        if verbose:
+            _append_debug_log(
+                "manual_guide.log",
+                (
+                    f"magnet matched score={best_score:.4f} "
+                    f"guide={new_guide_x:.2f},{new_guide_y:.2f} "
+                    f"marker={new_marker_x:.2f},{new_marker_y:.2f} "
+                    f"scale={best_scale:.4f} hits={best_hits}"
+                ),
+            )
         return True
 
     def _sync_manual_from_guide(self) -> None:
@@ -1465,6 +1547,7 @@ class ControlWindow(QWidget):
         self.status_pill.setStyleSheet(self._pill_style(DISABLED_TEXT_COLOR))
 
     def closeEvent(self, event) -> None:
+        self._stop_magnet("app-close")
         if self.guide_overlay is not None:
             self._sync_manual_from_guide()
             self.guide_overlay.close()
