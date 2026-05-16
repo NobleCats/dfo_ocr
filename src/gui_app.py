@@ -26,7 +26,6 @@ from PyQt6.QtGui import (
 from PyQt6.QtWidgets import (
     QApplication,
     QHBoxLayout,
-    QFileDialog,
     QLabel,
     QLineEdit,
     QProgressBar,
@@ -294,6 +293,7 @@ class TitleButton(QLabel):
 
 class ManualGuideOverlay(QWidget):
     moved = pyqtSignal()
+    scale_changed = pyqtSignal(int)  # emits int(scale * 100) for slider sync
 
     def __init__(self, marker_x: float, marker_y: float, scale: float):
         super().__init__(
@@ -308,7 +308,9 @@ class ManualGuideOverlay(QWidget):
         self.guide_x = float(marker_x) - GUIDE_REF_MARKER_LEFT_IN_WINDOW * self.scale
         self.guide_y = float(marker_y) - GUIDE_REF_MARKER_TOP_IN_WINDOW * self.scale
         self._dragging = False
+        self._resizing = False
         self._hover_handle = False
+        self._hover_resize = False
         self._last_global = QPoint()
         self._screen_maps: list[tuple[QRect, QRectF, float]] = []
         self._title_pixmap = self._load_guide_pixmap("resources/guide_title.png")
@@ -424,6 +426,7 @@ class ManualGuideOverlay(QWidget):
         self.scale = max(0.35, min(1.8, float(scale)))
         self.update()
         self.moved.emit()
+        self.scale_changed.emit(int(round(self.scale * 100)))
         self._log_geometry("scale")
 
     def _screen_dpr_at(self, point: QPoint) -> float:
@@ -445,10 +448,16 @@ class ManualGuideOverlay(QWidget):
         origin = self.mapToGlobal(QPoint(0, 0))
         return QPoint(int(round(x - origin.x())), int(round(y - origin.y())))
 
+    def _resize_handle_rect(self) -> QRect:
+        guide = self._guide_rect()
+        size = max(14, int(round(18 * self.scale)))
+        return QRect(guide.right() - size, guide.bottom() - size, size, size)
+
     def _log_geometry(self, reason: str) -> None:
         guide = self._guide_rect()
         marker = self._marker_rect()
         handle = self._handle_rect()
+        resize = self._resize_handle_rect()
         _append_debug_log(
             "manual_guide.log",
             (
@@ -456,7 +465,8 @@ class ManualGuideOverlay(QWidget):
                 f"global_origin={self.mapToGlobal(QPoint(0, 0)).x()},{self.mapToGlobal(QPoint(0, 0)).y()} "
                 f"guide_physical={self.guide_x:.2f},{self.guide_y:.2f} "
                 f"marker_physical={self.marker_x:.2f},{self.marker_y:.2f} scale={self.scale:.4f} "
-                f"guide={guide.getRect()} marker={marker.getRect()} handle={handle.getRect()} "
+                f"guide={guide.getRect()} marker={marker.getRect()} "
+                f"handle={handle.getRect()} resize={resize.getRect()} "
                 f"maps={[ (m[0].getRect(), (m[1].x(), m[1].y(), m[1].width(), m[1].height()), m[2]) for m in self._screen_maps ]}"
             ),
         )
@@ -529,10 +539,11 @@ class ManualGuideOverlay(QWidget):
             painter.drawPixmap(bx, by, scaled_btn)
         painter.setOpacity(1.0)
 
-        active = self._hover_handle or self._dragging
-        color = QColor(255, 0, 0, 255) if active else QColor(0, 190, 255, 255)
-        width = 6 if active else 4
-        painter.setPen(QPen(color, width))
+        drag_active = self._hover_handle or self._dragging
+        resize_active = self._hover_resize or self._resizing
+        any_active = drag_active or resize_active
+        outline_color = QColor(255, 0, 0, 255) if any_active else QColor(0, 190, 255, 255)
+        painter.setPen(QPen(outline_color, 6 if any_active else 4))
         painter.setBrush(Qt.BrushStyle.NoBrush)
 
         painter.drawRect(guide)
@@ -547,18 +558,28 @@ class ManualGuideOverlay(QWidget):
             row_top = guide.top() + int(round((GUIDE_REF_FIRST_ROW_TOP_IN_WINDOW + row * GUIDE_REF_ROW_PITCH) * s))
             painter.drawRect(QRect(row_left, row_top, row_width, row_height))
 
+        # Drag handle — top-left, yellow.
         handle = self._handle_rect()
-        handle_color = QColor(255, 255, 0, 255)
-        painter.setPen(QPen(handle_color, 4 if active else 3))
-        painter.setBrush(QColor(255, 255, 0, 210 if active else 170))
+        painter.setPen(QPen(QColor(255, 255, 0, 255), 4 if drag_active else 3))
+        painter.setBrush(QColor(255, 255, 0, 210 if drag_active else 170))
         painter.drawRect(handle)
+
+        # Resize handle — bottom-right, teal/orange.
+        resize_handle = self._resize_handle_rect()
+        rc = QColor(255, 120, 0, 255) if resize_active else QColor(0, 220, 180, 255)
+        painter.setPen(QPen(rc, 4 if resize_active else 3))
+        painter.setBrush(QColor(rc.red(), rc.green(), rc.blue(), 210 if resize_active else 170))
+        painter.drawRect(resize_handle)
+
         painter.end()
 
     def mouseMoveEvent(self, event) -> None:
         pos = event.position().toPoint()
-        over = self._handle_rect().contains(pos)
-        if over != self._hover_handle:
-            self._hover_handle = over
+        over_drag = self._handle_rect().contains(pos)
+        over_resize = self._resize_handle_rect().contains(pos)
+        if over_drag != self._hover_handle or over_resize != self._hover_resize:
+            self._hover_handle = over_drag
+            self._hover_resize = over_resize
             self.update()
         if self._dragging:
             current = event.globalPosition().toPoint()
@@ -570,22 +591,40 @@ class ManualGuideOverlay(QWidget):
             self.update()
             self.moved.emit()
             self._log_geometry("move")
+        elif self._resizing:
+            guide = self._guide_rect()
+            new_w = max(1, pos.x() - guide.left())
+            new_scale = max(0.35, min(1.8, new_w / GUIDE_REF_WINDOW_SIZE[0]))
+            self.scale = new_scale
+            self.scale_changed.emit(int(round(new_scale * 100)))
+            self.update()
 
     def mousePressEvent(self, event) -> None:
-        if event.button() == Qt.MouseButton.LeftButton and self._handle_rect().contains(event.position().toPoint()):
-            self._dragging = True
-            self._last_global = event.globalPosition().toPoint()
-            self.update()
+        if event.button() == Qt.MouseButton.LeftButton:
+            pos = event.position().toPoint()
+            if self._handle_rect().contains(pos):
+                self._dragging = True
+                self._last_global = event.globalPosition().toPoint()
+                self.update()
+            elif self._resize_handle_rect().contains(pos):
+                self._resizing = True
+                self.update()
 
     def mouseReleaseEvent(self, event) -> None:
         if self._dragging:
             self._dragging = False
             self.update()
             self.moved.emit()
+        if self._resizing:
+            self._resizing = False
+            self.update()
+            self.moved.emit()
+            self._log_geometry("resize")
 
     def leaveEvent(self, event) -> None:
-        if self._hover_handle:
+        if self._hover_handle or self._hover_resize:
             self._hover_handle = False
+            self._hover_resize = False
             self.update()
 
 
@@ -596,7 +635,7 @@ class ControlWindow(QWidget):
         self.demo = None
         self.guide_overlay: ManualGuideOverlay | None = None
         self.manual_party_apply = self._load_manual_party_apply()
-        self.test_image_path = str(load_settings().get("test_image_path", "") or "")
+        self._manual_mode: bool = bool(load_settings().get("manual_mode", False))
 
         # Closed-but-not-yet-collected demos. Keep strong refs so worker
         # threads can finish final frames without touching destroyed QObjects.
@@ -704,14 +743,20 @@ class ControlWindow(QWidget):
         self.toggle_btn.clicked.connect(lambda _: self.toggle_overlay())
         self._set_toggle_icon(running=False)
 
+        self.mode_btn = QPushButton("AUTO")
+        self.mode_btn.setFixedSize(64, ACTION_BUTTON_SIZE)
+        self.mode_btn.setToolTip(
+            "AUTO: automatically detect the request window.\n"
+            "MANUAL: use the AREA guide to specify the position."
+        )
+        self.mode_btn.clicked.connect(lambda _: self.toggle_capture_mode())
+
         status_row = QHBoxLayout()
         status_row.setSpacing(8)
         status_row.addWidget(self.status_pill, 1)
+        status_row.addWidget(self.mode_btn)
         status_row.addWidget(self.toggle_btn)
         root.addLayout(status_row)
-
-        manual_row = QHBoxLayout()
-        manual_row.setSpacing(8)
 
         self.scale_slider = QSlider(Qt.Orientation.Horizontal)
         self.scale_slider.setRange(35, 180)
@@ -724,15 +769,15 @@ class ControlWindow(QWidget):
         self.area_btn.setToolTip("Show or hide the manual request-window guide.")
         self.area_btn.clicked.connect(lambda _: self.toggle_manual_guide())
 
-        self.image_btn = QPushButton("IMG")
-        self.image_btn.setFixedSize(48, ACTION_BUTTON_SIZE)
-        self.image_btn.setToolTip("Select a screenshot for debug testing.")
-        self.image_btn.clicked.connect(lambda _: self.select_test_image())
-
+        self._manual_row = QWidget()
+        manual_row = QHBoxLayout(self._manual_row)
+        manual_row.setContentsMargins(0, 0, 0, 0)
+        manual_row.setSpacing(8)
         manual_row.addWidget(self.scale_slider, 1)
         manual_row.addWidget(self.area_btn)
-        manual_row.addWidget(self.image_btn)
-        root.addLayout(manual_row)
+        root.addWidget(self._manual_row)
+
+        self._apply_mode_ui()
 
         self.progress = QProgressBar()
         self.progress.setRange(0, 0)
@@ -933,12 +978,6 @@ class ControlWindow(QWidget):
 
     def _initial_manual_marker(self) -> tuple[float, float, float]:
         scale = float(self.manual_party_apply.get("scale", 1.0))
-        if self.test_image_path:
-            return (
-                80.0 + GUIDE_REF_MARKER_LEFT_IN_WINDOW * scale,
-                80.0 + GUIDE_REF_MARKER_TOP_IN_WINDOW * scale,
-                scale,
-            )
         win_rect = self._find_game_window_rect()
         if win_rect is not None and "marker_x_rel" in self.manual_party_apply:
             left, top, _, _ = win_rect
@@ -956,6 +995,30 @@ class ControlWindow(QWidget):
             )
         return 120.0, 120.0, scale
 
+    def toggle_capture_mode(self) -> None:
+        """Switch between AUTO (template detection) and MANUAL (AREA guide)."""
+        if self.demo is not None:
+            return  # cannot switch while running
+        if self.guide_overlay is not None:
+            self._sync_manual_from_guide()
+            self.guide_overlay.close()
+            self.guide_overlay = None
+            self.area_btn.setText("AREA")
+        self._manual_mode = not self._manual_mode
+        data = load_settings()
+        data["manual_mode"] = self._manual_mode
+        save_settings(data)
+        self._apply_mode_ui()
+
+    def _apply_mode_ui(self) -> None:
+        self.mode_btn.setText("MANUAL" if self._manual_mode else "AUTO")
+        self._manual_row.setVisible(self._manual_mode)
+
+    def _sync_slider_from_guide(self, value: int) -> None:
+        self.scale_slider.blockSignals(True)
+        self.scale_slider.setValue(value)
+        self.scale_slider.blockSignals(False)
+
     def toggle_manual_guide(self) -> None:
         if self.guide_overlay is not None:
             self._sync_manual_from_guide()
@@ -967,6 +1030,7 @@ class ControlWindow(QWidget):
         marker_x, marker_y, scale = self._initial_manual_marker()
         self.guide_overlay = ManualGuideOverlay(marker_x, marker_y, scale)
         self.guide_overlay.moved.connect(self._sync_manual_from_guide)
+        self.guide_overlay.scale_changed.connect(self._sync_slider_from_guide)
         self.guide_overlay.show()
         self.scale_slider.blockSignals(True)
         self.scale_slider.setValue(int(round(scale * 100)))
@@ -999,23 +1063,6 @@ class ControlWindow(QWidget):
         }
         self._save_manual_party_apply()
 
-    def select_test_image(self) -> None:
-        initial = str(Path(self.test_image_path).parent) if self.test_image_path else str(Path.home())
-        path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Select screenshot",
-            initial,
-            "Images (*.png *.jpg *.jpeg *.bmp);;All Files (*)",
-        )
-        if not path:
-            return
-        self.test_image_path = path
-        data = load_settings()
-        data["test_image_path"] = self.test_image_path
-        save_settings(data)
-        self.status_pill.setText("IMAGE SELECTED")
-        self.status_pill.setStyleSheet(self._pill_style(HIGHLIGHT_TEXT_COLOR))
-
     def toggle_overlay(self) -> None:
         if self.demo is not None:
             self.stop_overlay()
@@ -1041,6 +1088,10 @@ class ControlWindow(QWidget):
                 self.area_btn.setText("AREA")
             from app import LiveDemo
 
+            manual_cfg = None
+            if self._manual_mode and self.manual_party_apply.get("marker_x_rel") is not None:
+                manual_cfg = self.manual_party_apply
+
             self.demo = LiveDemo(
                 capture_interval_ms=DEFAULT_CAPTURE_INTERVAL_MS,
                 demo_scores=False,
@@ -1048,8 +1099,7 @@ class ControlWindow(QWidget):
                 window_title=DEFAULT_WINDOW_TITLE,
                 neople_api_key=self.api_key_input.text().strip(),
                 mode="party_apply",
-                manual_party_apply=self.manual_party_apply if self.manual_party_apply.get("marker_x_rel") is not None else None,
-                test_image_path=self.test_image_path or None,
+                manual_party_apply=manual_cfg,
                 unavailable_callback=self._overlay_unavailable,
                 waiting_callback=self._overlay_waiting,
                 recovered_callback=self._overlay_recovered,
@@ -1138,9 +1188,9 @@ class ControlWindow(QWidget):
     def _set_controls_enabled(self, enabled: bool) -> None:
         self.api_key_input.setEnabled(enabled)
         self.api_help_btn.setEnabled(enabled)
+        self.mode_btn.setEnabled(enabled)
         self.scale_slider.setEnabled(enabled)
         self.area_btn.setEnabled(enabled)
-        self.image_btn.setEnabled(enabled)
 
 
 def main() -> int:

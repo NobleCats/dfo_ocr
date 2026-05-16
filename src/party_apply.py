@@ -1406,14 +1406,35 @@ def _read_class(
 
 
 def _strip_lv_prefix(text: str) -> str:
-    """Drop the leading 'Lv. 115 ' prefix, tolerating common OCR variants."""
+    """Drop the leading 'Lv. 115 ' prefix, tolerating OCR garbling.
+
+    OCR often misreads 'Lv.' as a short token such as 'u', 'iv', or '1v',
+    producing output like 'u 115 ikura' instead of 'Lv. 115 ikura'.
+    Three patterns are tried in order:
+      1. Recognisable 'Lv/LV' variants.
+      2. Any short OCR token (1-5 non-space chars) + space + plausible level
+         number (1-125) + space — catches garbled prefixes.
+      3. Purely digit prefix when the 'Lv.' text was entirely dropped.
+    """
     s = text.lstrip()
     digit_class = r"[\dIlLiSsOoBb]"
 
-    m = re.search(r"[Ll][vVuUyY][.,;:]?\s*" + digit_class + r"{1,4}\s*", s[:14])
+    # Pattern 1: recognisable Lv/LV variants.
+    m = re.search(r"[Ll][vVuUyY][.,;:]?\s*" + digit_class + r"{1,4}\s*", s[:16])
     if m:
         return s[m.end():]
 
+    # Pattern 2: garbled Lv prefix — short token + whitespace + level digits +
+    # whitespace.  Handles "u 115 name", "iv 115 name", "1v 115 name".
+    m = re.match(r"^\S{1,5}\s+(\d{1,3})\s+", s)
+    if m:
+        try:
+            if 1 <= int(m.group(1)) <= 125:
+                return s[m.end():]
+        except ValueError:
+            pass
+
+    # Pattern 3: purely digit prefix when Lv. was entirely dropped by OCR.
     m = re.match(r"^[\W_]*" + digit_class + r"{1,3}\s*", s)
     if m:
         return s[m.end():]
