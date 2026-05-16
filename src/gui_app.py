@@ -822,7 +822,7 @@ class ControlWindow(QWidget):
         self.magnet_btn.setToolTip(
             "Find title, tab, and button anchors near the guide and snap position/scale."
         )
-        self.magnet_btn.clicked.connect(self._toggle_magnet)
+        self.magnet_btn.clicked.connect(lambda _: self._toggle_magnet())
 
         self._manual_row = QWidget()
         manual_row = QHBoxLayout(self._manual_row)
