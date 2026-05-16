@@ -6,7 +6,6 @@ import os
 import sys
 import base64
 import ctypes
-import time
 from ctypes import wintypes
 from datetime import datetime
 import json
@@ -1112,10 +1111,16 @@ class ControlWindow(QWidget):
     def _toggle_magnet(self) -> None:
         if self._magnet_enabled:
             return
+        _append_debug_log("manual_guide.log", "magnet clicked")
         self._set_magnet_active(True)
         try:
             ok = self._run_magnet_align()
             _append_debug_log("manual_guide.log", f"magnet done ok={ok}")
+        except BaseException as exc:
+            _append_debug_log(
+                "manual_guide.log",
+                f"magnet crashed: {type(exc).__name__}: {exc}",
+            )
         finally:
             self._set_magnet_active(False)
 
@@ -1130,6 +1135,7 @@ class ControlWindow(QWidget):
 
     def _run_magnet_align(self) -> bool:
         """Template-match guide anchors on screen to fine-tune position and scale."""
+        _append_debug_log("manual_guide.log", "magnet step=import")
         try:
             import cv2
             import numpy as np
@@ -1152,7 +1158,12 @@ class ControlWindow(QWidget):
             gy = float(self.manual_party_apply["guide_y_abs"])
             current_scale = float(self.manual_party_apply.get("scale", 1.0))
         else:
+            _append_debug_log("manual_guide.log", "magnet failed: no guide calibration")
             return False
+        _append_debug_log(
+            "manual_guide.log",
+            f"magnet step=geometry guide={gx:.2f},{gy:.2f} scale={current_scale:.4f}",
+        )
 
         def _first_resource(*names: str) -> Path | None:
             for name in names:
@@ -1191,17 +1202,16 @@ class ControlWindow(QWidget):
         if not anchors:
             _append_debug_log("manual_guide.log", "magnet failed: no anchor templates")
             return False
+        _append_debug_log(
+            "manual_guide.log",
+            "magnet step=anchors " + ",".join(str(a["name"]) for a in anchors),
+        )
 
         gw = GUIDE_REF_WINDOW_SIZE[0] * current_scale
         gh = GUIDE_REF_WINDOW_SIZE[1] * current_scale
         pad = MAGNET_SEARCH_PAD
 
-        was_visible = bool(guide is not None and guide.isVisible())
         try:
-            if guide is not None and was_visible:
-                guide.hide()
-                QApplication.processEvents()
-                time.sleep(0.08)
             with _mss.mss() as sct:
                 virtual = sct.monitors[0]
                 vx = int(virtual.get("left", 0))
@@ -1217,6 +1227,10 @@ class ControlWindow(QWidget):
                 if sw < 20 or sh < 20:
                     _append_debug_log("manual_guide.log", "magnet failed: empty search region")
                     return False
+                _append_debug_log(
+                    "manual_guide.log",
+                    f"magnet step=capture rect=({sx},{sy},{sw},{sh}) virtual=({vx},{vy},{vw},{vh})",
+                )
                 shot = sct.grab({"left": sx, "top": sy, "width": sw, "height": sh})
             search_img = np.ascontiguousarray(np.array(shot)[:, :, :3])
         except Exception as exc:
@@ -1225,12 +1239,6 @@ class ControlWindow(QWidget):
                 f"magnet capture failed: {type(exc).__name__}: {exc}",
             )
             return False
-        finally:
-            if guide is not None and was_visible:
-                guide.show()
-                guide.raise_()
-                guide._force_topmost()
-                QApplication.processEvents()
 
         templates = []
         try:
