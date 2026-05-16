@@ -477,6 +477,17 @@ class LiveDemo:
             return
         t0 = time.perf_counter()
         try:
+            if self.mode == "party_apply" and self._has_manual_guide_capture():
+                t_cap0 = time.perf_counter()
+                manual_det = self._manual_party_apply_detection(None)
+                cap_ms = (time.perf_counter() - t_cap0) * 1000
+                if self._closed:
+                    return
+                if manual_det is not None and self._manual_guide_frame is not None:
+                    return self._process_frame_party_apply(
+                        t0, cap_ms, self._manual_guide_frame, manual_det=manual_det
+                    )
+
             if self.capture is None:
                 if self.test_image_path:
                     self.capture = ImageCapture(self.test_image_path)
@@ -505,10 +516,28 @@ class LiveDemo:
             self._safe_emit(self._frame_emitter.failed, str(e))
             return
 
-    def _process_frame_party_apply(self, t0: float, cap_ms: float, frame: np.ndarray):
+    def _has_manual_guide_capture(self) -> bool:
+        cfg = self.manual_party_apply
+        return bool(
+            cfg
+            and cfg.get("enabled", True)
+            and "guide_x_abs" in cfg
+            and "guide_y_abs" in cfg
+            and "guide_w" in cfg
+            and "guide_h" in cfg
+        )
+
+    def _process_frame_party_apply(
+        self,
+        t0: float,
+        cap_ms: float,
+        frame: np.ndarray,
+        manual_det: PartyApplyDetection | None = None,
+    ):
         self._last_frame = frame
         try:
-            manual_det = self._manual_party_apply_detection(frame)
+            if manual_det is None:
+                manual_det = self._manual_party_apply_detection(frame)
             had_hint = self._last_party_apply_hint is not None
             cold = not had_hint
             # Cold scan (no hint) is ~1.5-2s on 2K captures. Throttle it so
@@ -635,7 +664,7 @@ class LiveDemo:
             "det_ms": det_ms,
         })
 
-    def _manual_party_apply_detection(self, frame: np.ndarray) -> PartyApplyDetection | None:
+    def _manual_party_apply_detection(self, frame: np.ndarray | None) -> PartyApplyDetection | None:
         cfg = self.manual_party_apply
         if not cfg or not cfg.get("enabled", True):
             return None
@@ -678,12 +707,16 @@ class LiveDemo:
                 self._manual_guide_frame = None
                 self._manual_guide_origin = (origin_x, origin_y)
             else:
+                if frame is None:
+                    return None
                 marker_x_rel = float(cfg["marker_x_rel"])
                 marker_y_rel = float(cfg["marker_y_rel"])
                 self._manual_guide_frame = None
                 self._manual_guide_origin = getattr(self.capture, "origin_xy", (0, 0))
         except Exception:
             self._log.warning("invalid manual party_apply calibration: %s", cfg, exc_info=True)
+            return None
+        if frame is None:
             return None
         det = build_manual_party_apply_detection(
             (int(round(marker_x_rel)), int(round(marker_y_rel))),
