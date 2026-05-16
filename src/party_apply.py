@@ -903,7 +903,7 @@ def recognize_party_apply(
         check_x1 = min(W, name_right_for_check)
         check_y1 = min(H, row_top + pitch)
 
-        if check_x1 - check_x0 >= 10 and check_y1 - row_top >= 5:
+        if not det.is_manual and check_x1 - check_x0 >= 10 and check_y1 - row_top >= 5:
             row_strip = image_rgb[row_top:check_y1, check_x0:check_x1]
             gray_max = row_strip.max(axis=2)
             bg = float(np.percentile(gray_max, 25))

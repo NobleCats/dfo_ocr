@@ -513,6 +513,30 @@ class ManualGuideOverlay(QWidget):
         marker = self._marker_rect()
         s = self.scale
 
+        if self._running:
+            # Nearly invisible solid outline while recognition is active.
+            painter.setOpacity(0.18)
+            painter.setPen(QPen(QColor(0, 190, 255, 255), 1))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawRect(guide)
+            title_y = guide.top() + int(round(GUIDE_REF_TITLE_BOTTOM_Y * s))
+            painter.drawLine(guide.left(), title_y, guide.right(), title_y)
+            painter.drawRect(marker)
+            row_left = guide.left() + int(round(GUIDE_REF_SLOT_LEFT_IN_WINDOW * s))
+            row_width = int(round(GUIDE_REF_ROW_WIDTH * s))
+            row_height = int(round(GUIDE_REF_ROW_HEIGHT * s))
+            for row in range(GUIDE_MAX_ROWS):
+                row_top_y = guide.top() + int(round(
+                    (GUIDE_REF_FIRST_ROW_TOP_IN_WINDOW + row * GUIDE_REF_ROW_PITCH) * s))
+                painter.drawRect(QRect(row_left, row_top_y, row_width, row_height))
+            painter.setOpacity(0.25)
+            painter.setPen(QPen(QColor(140, 140, 140, 255), 1))
+            painter.setBrush(QColor(100, 100, 100, 80))
+            painter.drawRect(self._handle_rect())
+            painter.drawRect(self._resize_handle_rect())
+            painter.end()
+            return
+
         # Draw reference images at 10% opacity as alignment aids.
         painter.setOpacity(GUIDE_OVERLAY_IMAGE_ALPHA)
         if not self._title_pixmap.isNull():
