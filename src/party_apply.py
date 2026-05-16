@@ -133,6 +133,7 @@ ROW_GATE_MIN_NAME_TRANSITIONS = 45
 ROW_GATE_MAX_INITIAL_EMPTY_ROWS = 4
 MAX_OCR_PER_FRAME = 12
 ROW_GATE_MIN_ACTION_PIXELS = 14
+ROW_GATE_TEMPLATE_MIN_SCORE = 0.72
 ROW_OCR_CACHE_CAP = 128
 
 _DEFAULT_MARKER_PATH = resource_path("markers", "party_apply", "column_header_69pct.png")
@@ -285,6 +286,7 @@ class _CompositeOCRResult:
 
 _ROW_OCR_CACHE: dict[bytes, PartyApplyRow] = {}
 _COMPOSITE_RESULT_CACHE: dict[bytes, _CompositeOCRResult] = {}
+_ROW_GATE_TEMPLATE_CACHE: dict[str, np.ndarray | None] = {}
 
 
 def _cache_party_apply_row(sig: bytes, row: PartyApplyRow) -> None:
@@ -316,6 +318,56 @@ def _row_mask_signature(image_rgb: np.ndarray, rects: list[tuple[int, int, int, 
     return b"|".join(parts)
 
 
+def _load_row_gate_template(filename: str) -> np.ndarray | None:
+    cached = _ROW_GATE_TEMPLATE_CACHE.get(filename)
+    if filename in _ROW_GATE_TEMPLATE_CACHE:
+        return cached
+    try:
+        img = np.array(Image.open(resource_path("resources", filename)).convert("RGB"))
+    except Exception as exc:
+        _logger.debug("row gate template load failed %s: %s", filename, exc)
+        img = None
+    _ROW_GATE_TEMPLATE_CACHE[filename] = img
+    return img
+
+
+def _has_row_gate_template(
+    image_rgb: np.ndarray,
+    filenames: tuple[str, ...],
+    x_range: tuple[int, int],
+    y_range: tuple[int, int],
+    scale: float,
+) -> bool:
+    H, W = image_rgb.shape[:2]
+    x0, x1 = max(0, x_range[0]), min(W, x_range[1])
+    y0, y1 = max(0, y_range[0]), min(H, y_range[1])
+    if x1 - x0 < 6 or y1 - y0 < 6:
+        return False
+    crop = image_rgb[y0:y1, x0:x1]
+    crop_gray = cv2.cvtColor(np.ascontiguousarray(crop), cv2.COLOR_RGB2GRAY)
+
+    for filename in filenames:
+        tmpl = _load_row_gate_template(filename)
+        if tmpl is None or tmpl.size == 0:
+            continue
+        tmpl_gray_src = cv2.cvtColor(np.ascontiguousarray(tmpl), cv2.COLOR_RGB2GRAY)
+        for factor in (0.85, 1.0, 1.15):
+            s = max(0.35, min(1.8, scale * factor))
+            tw = int(round(tmpl_gray_src.shape[1] * s))
+            th = int(round(tmpl_gray_src.shape[0] * s))
+            if tw < 4 or th < 4 or tw > crop_gray.shape[1] or th > crop_gray.shape[0]:
+                continue
+            tmpl_gray = cv2.resize(tmpl_gray_src, (tw, th), interpolation=cv2.INTER_AREA)
+            try:
+                result = cv2.matchTemplate(crop_gray, tmpl_gray, cv2.TM_CCOEFF_NORMED)
+                _, max_val, _, _ = cv2.minMaxLoc(result)
+            except cv2.error:
+                continue
+            if max_val >= ROW_GATE_TEMPLATE_MIN_SCORE:
+                return True
+    return False
+
+
 def _has_fame_star_icon(
     image_rgb: np.ndarray,
     x_left: int,
@@ -335,6 +387,8 @@ def _has_fame_star_icon(
     y0, y1 = max(0, y_range[0]), min(H, y_range[1])
     if x1 - x0 < 4 or y1 - y0 < 4:
         return False
+    if _has_row_gate_template(image_rgb, ("fame.png",), (x0, x1), (y0, y1), scale):
+        return True
     crop = image_rgb[y0:y1, x0:x1]
     r = crop[:, :, 0].astype(np.int16)
     g = crop[:, :, 1].astype(np.int16)
@@ -356,6 +410,14 @@ def _has_pending_action_button(image_rgb: np.ndarray, x_range: tuple[int, int], 
     y0, y1 = max(0, y_range[0]), min(H, y_range[1])
     if x1 - x0 < 8 or y1 - y0 < 8:
         return False
+    if _has_row_gate_template(
+        image_rgb,
+        ("accept.png", "decline.png"),
+        (x0, x1),
+        (y0, y1),
+        scale,
+    ):
+        return True
     crop = image_rgb[y0:y1, x0:x1]
     r = crop[:, :, 0].astype(np.int16)
     g = crop[:, :, 1].astype(np.int16)

@@ -503,7 +503,7 @@ class ManualGuideOverlay(QWidget):
     def _handle_rect(self) -> QRect:
         guide = self._guide_rect()
         size = max(14, int(round(18 * self.scale)))
-        return QRect(guide.right() - size, guide.top(), size, size)
+        return QRect(guide.left(), guide.top(), size, size)
 
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
@@ -820,8 +820,9 @@ class ControlWindow(QWidget):
         self.magnet_btn = QPushButton("MAG")
         self.magnet_btn.setFixedSize(48, ACTION_BUTTON_SIZE)
         self.magnet_btn.setToolTip(
-            "Magnet: auto-align guide position and scale by detecting the party-apply window header."
+            "Magnet is disabled in this build while the native capture crash is isolated."
         )
+        self.magnet_btn.setEnabled(False)
         self.magnet_btn.clicked.connect(self._toggle_magnet)
 
         self._manual_row = QWidget()
@@ -1109,21 +1110,8 @@ class ControlWindow(QWidget):
             self._save_manual_party_apply()
 
     def _toggle_magnet(self) -> None:
-        if self._magnet_enabled:
-            self._set_magnet_active(False)
-            return
-
-        self._set_magnet_active(True)
-        try:
-            matched = self._run_magnet_align()
-        except Exception as exc:
-            matched = False
-            _append_debug_log(
-                "manual_guide.log",
-                f"magnet failed: {type(exc).__name__}: {exc}",
-            )
-        if not matched:
-            self._set_magnet_active(False)
+        _append_debug_log("manual_guide.log", "magnet ignored: disabled")
+        self._set_magnet_active(False)
 
     def _set_magnet_active(self, active: bool) -> None:
         self._magnet_enabled = active

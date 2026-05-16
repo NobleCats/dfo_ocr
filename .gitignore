@@ -4,10 +4,9 @@ dist/
 release_dist/
 build_secure/
 
-# PyInstaller specs that aren't the canonical release spec.
-# tools/release.spec is the intentional one and stays tracked.
+# PyInstaller specs that aren't canonical release specs.
 *.spec
-!tools/release.spec
+!tools/full_onefile.spec
 
 # Python bytecode and caches
 __pycache__/
