@@ -1152,7 +1152,9 @@ class ControlWindow(QWidget):
         try:
             with _mss.mss() as sct:
                 shot = sct.grab({"left": sx, "top": sy, "width": sw, "height": sh})
-            search_img = np.array(shot)[:, :, :3]  # BGRA → BGR
+            # .copy() is required: BGRA[:,:,:3] is a non-contiguous slice and
+            # cv2.matchTemplate will raise cv2.error on non-contiguous arrays.
+            search_img = np.array(shot)[:, :, :3].copy()
         except Exception:
             return
 
@@ -1167,19 +1169,22 @@ class ControlWindow(QWidget):
         best_mx = best_my = 0
         best_scale = current_scale
 
-        for pct in range(85, 116, 3):
-            s = max(0.35, min(1.8, current_scale * pct / 100.0))
-            tw = int(round(ref_w * s))
-            th = int(round(ref_h * s))
-            if tw < 10 or th < 3 or tw >= search_img.shape[1] or th >= search_img.shape[0]:
-                continue
-            tmpl = cv2.resize(tab_bgr, (tw, th), interpolation=cv2.INTER_AREA)
-            result = cv2.matchTemplate(search_img, tmpl, cv2.TM_CCOEFF_NORMED)
-            _, max_val, _, max_loc = cv2.minMaxLoc(result)
-            if max_val > best_score:
-                best_score = max_val
-                best_mx, best_my = max_loc
-                best_scale = s
+        try:
+            for pct in range(85, 116, 3):
+                s = max(0.35, min(1.8, current_scale * pct / 100.0))
+                tw = int(round(ref_w * s))
+                th = int(round(ref_h * s))
+                if tw < 10 or th < 3 or tw >= search_img.shape[1] or th >= search_img.shape[0]:
+                    continue
+                tmpl = cv2.resize(tab_bgr, (tw, th), interpolation=cv2.INTER_AREA)
+                result = cv2.matchTemplate(search_img, tmpl, cv2.TM_CCOEFF_NORMED)
+                _, max_val, _, max_loc = cv2.minMaxLoc(result)
+                if max_val > best_score:
+                    best_score = max_val
+                    best_mx, best_my = max_loc
+                    best_scale = s
+        except Exception:
+            return
 
         if best_score < MAGNET_MIN_MATCH_SCORE:
             return
