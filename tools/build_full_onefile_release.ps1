@@ -66,19 +66,70 @@ $AppName = "DFOGANG_RaidHelper_${Version}_${Commit}.exe"
 $BuildSecure = Join-Path $Root "build_secure"
 $ProtectedSrc = Join-Path $BuildSecure "protected_src"
 $ReleaseDist = Join-Path $Root "release_dist"
+$TclTkBuildRoot = Join-Path ([System.IO.Path]::GetTempPath()) "python310_tcltk"
+$ProjectModules = @(
+    "app",
+    "build_info",
+    "capture",
+    "debug_capture",
+    "detect",
+    "dfogang",
+    "general_ocr",
+    "gui_app",
+    "neople",
+    "overlay",
+    "party_apply",
+    "qt_dpi",
+    "resources"
+)
 
 Write-Host "[1/9] Cleaning build outputs..."
 Remove-Item $BuildSecure -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item "build" -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item "dist" -Recurse -Force -ErrorAction SilentlyContinue
+foreach ($Module in $ProjectModules) {
+    Remove-Item "${Module}.cp*.pyd" -Force -ErrorAction SilentlyContinue
+}
 New-Item -ItemType Directory -Force $ProtectedSrc | Out-Null
 New-Item -ItemType Directory -Force $ReleaseDist | Out-Null
 
 Write-Host "[2/9] Checking Python..."
 & $Python --version
 
+Write-Host "[2/9] Preparing Tcl/Tk splash runtime..."
+$PythonPrefix = (& $Python -c "import sys; print(sys.prefix)").Trim()
+$SourceTcl = Join-Path $PythonPrefix "tcl\tcl8.6"
+$SourceTk = Join-Path $PythonPrefix "tcl\tk8.6"
+if (!(Test-Path $SourceTcl) -or !(Test-Path $SourceTk)) {
+    throw "Tcl/Tk runtime folders not found under Python prefix: $PythonPrefix"
+}
+New-Item -ItemType Directory -Force $TclTkBuildRoot | Out-Null
+Copy-Item -LiteralPath $SourceTcl -Destination $TclTkBuildRoot -Recurse -Force
+Copy-Item -LiteralPath $SourceTk -Destination $TclTkBuildRoot -Recurse -Force
+$env:TCL_LIBRARY = Join-Path $TclTkBuildRoot "tcl8.6"
+$env:TK_LIBRARY = Join-Path $TclTkBuildRoot "tk8.6"
+& $Python -c "import tkinter; t=tkinter.Tcl(); print('Tcl/Tk', t.eval('info patchlevel'), t.eval('info library'))"
+
 Write-Host "[3/9] Installing/upgrading build tools..."
 & $Python -m pip install --upgrade pyinstaller pyinstaller-hooks-contrib cython setuptools wheel
+& $Python -m pip install --upgrade PyQt6 mss requests pillow numpy opencv-contrib-python paddleocr paddlepaddle pywin32 colorlog
+
+Write-Host "[3/9] Preparing bundled OCR models..."
+& $Python -c "from paddleocr import PaddleOCR; PaddleOCR(lang='en', use_doc_orientation_classify=False, use_doc_unwarping=False, use_textline_orientation=False, enable_mkldnn=False)"
+$PaddlexModelRoot = Join-Path $env:USERPROFILE ".paddlex\official_models"
+$RequiredOcrModels = @("PP-OCRv5_server_det", "en_PP-OCRv5_mobile_rec")
+foreach ($ModelName in $RequiredOcrModels) {
+    $ModelDir = Join-Path $PaddlexModelRoot $ModelName
+    if (!(Test-Path $ModelDir)) {
+        throw "Required OCR model cache not found: $ModelDir"
+    }
+    foreach ($RequiredFile in @("inference.json", "inference.pdiparams")) {
+        $RequiredPath = Join-Path $ModelDir $RequiredFile
+        if (!(Test-Path $RequiredPath)) {
+            throw "Required OCR model file not found: $RequiredPath"
+        }
+    }
+}
 
 Write-Host "[4/9] Verifying source syntax..."
 & $Python -m compileall src
@@ -94,6 +145,13 @@ BUILD_LABEL = "$Version ($Commit)"
 
 Write-Host "[6/9] Cythonizing protected modules..."
 & $Python "tools\cython_setup_full_onefile.py" build_ext --inplace
+foreach ($Module in $ProjectModules) {
+    $BuiltPyd = Get-ChildItem -Path $Root -Filter "${Module}.cp*.pyd" -File | Select-Object -First 1
+    if (!$BuiltPyd) {
+        throw "Cython output not found for module: $Module"
+    }
+    Move-Item -LiteralPath $BuiltPyd.FullName -Destination $ProtectedSrc -Force
+}
 
 Write-Host "[7/9] Removing staged plaintext source..."
 Remove-Item (Join-Path $ProtectedSrc "*.py") -Force -ErrorAction SilentlyContinue

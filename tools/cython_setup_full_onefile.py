@@ -12,24 +12,18 @@ PROTECTED_SRC = ROOT / "build_secure" / "protected_src"
 
 MODULES = [
     "app",
-    "bake_library",
     "build_info",
     "capture",
     "debug_capture",
     "detect",
     "dfogang",
-    "extract",
     "general_ocr",
     "gui_app",
-    "match",
     "neople",
     "overlay",
     "party_apply",
     "qt_dpi",
-    "recognize",
     "resources",
-    "segment",
-    "templates",
 ]
 
 extensions = []

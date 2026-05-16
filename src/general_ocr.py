@@ -17,6 +17,11 @@ import sys as _sys
 import threading
 from dataclasses import dataclass
 
+try:
+    from resources import resource_path
+except Exception:
+    resource_path = None
+
 # Disable paddle's OneDNN backend BEFORE any paddle/paddleocr import.
 os.environ.setdefault("FLAGS_use_mkldnn", "false")
 
@@ -33,6 +38,7 @@ _logger = logging.getLogger("dfogang.general_ocr")
 _reader = None
 _engine: str = ""  # "paddle" or "easyocr"
 _reader_lock = threading.Lock()
+_predict_lock = threading.Lock()
 _reader_failed = False
 
 # OCR profile:
@@ -42,6 +48,8 @@ _reader_failed = False
 # Override exact model with DFO_OCR_RECOGNITION_MODEL env var.
 _OCR_PROFILE = os.environ.get("DFO_OCR_PROFILE", "").strip().lower()
 _OCR_RECOGNITION_MODEL = os.environ.get("DFO_OCR_RECOGNITION_MODEL", "").strip()
+_OCR_DETECTION_MODEL = "PP-OCRv5_server_det"
+_OCR_DEFAULT_RECOGNITION_MODEL = "en_PP-OCRv5_mobile_rec"
 
 _CACHE_CAP = 256
 _fame_cache: dict[bytes, tuple[int | None, str, float]] = {}
@@ -98,7 +106,7 @@ def _try_paddle():
         paddle.set_flags({"FLAGS_use_mkldnn": False})
         from paddleocr import PaddleOCR
     except Exception as exc:
-        _logger.warning("PaddleOCR import failed: %s", exc)
+        _logger.warning("PaddleOCR import failed: %s", exc, exc_info=True)
         return None, ""
     base_kwargs = dict(
         lang="en",
@@ -124,6 +132,7 @@ def _try_paddle():
 
     for label, kwargs in attempts:
         try:
+            _apply_bundled_paddlex_models(kwargs, label)
             reader = PaddleOCR(**kwargs)
             if label == "default":
                 _logger.info(
@@ -135,9 +144,47 @@ def _try_paddle():
                     active_profile, label)
             return reader, "paddle"
         except Exception as exc:
-            _logger.warning("PaddleOCR init failed for %s: %s", label, exc)
+            _logger.warning("PaddleOCR init failed for %s: %s", label, exc, exc_info=True)
             continue
     return None, ""
+
+
+def _bundled_model_dir(model_name: str) -> str | None:
+    if resource_path is None:
+        return None
+    path = resource_path("paddlex_models", model_name)
+    if not path.exists():
+        return None
+    required = ("inference.json", "inference.pdiparams")
+    missing = [name for name in required if not (path / name).exists()]
+    if missing:
+        _logger.warning("Bundled OCR model %s is incomplete: missing %s",
+                        path, ", ".join(missing))
+        return None
+    return str(path)
+
+
+def _apply_bundled_paddlex_models(kwargs: dict, label: str) -> None:
+    """Use model files bundled inside the PyInstaller EXE when available.
+
+    Without this, PaddleOCR resolves models from the builder's per-user
+    ~/.paddlex cache. The builder has that cache, but recipients usually do
+    not, so OCR can silently return no text after deployment.
+    """
+    if kwargs.get("text_detection_model_dir") is None:
+        det_dir = _bundled_model_dir(_OCR_DETECTION_MODEL)
+        if det_dir:
+            kwargs["text_detection_model_name"] = _OCR_DETECTION_MODEL
+            kwargs["text_detection_model_dir"] = det_dir
+
+    if kwargs.get("text_recognition_model_dir") is None:
+        rec_name = kwargs.get("text_recognition_model_name")
+        if not rec_name or label == "default":
+            rec_name = _OCR_DEFAULT_RECOGNITION_MODEL
+        rec_dir = _bundled_model_dir(str(rec_name))
+        if rec_dir:
+            kwargs["text_recognition_model_name"] = rec_name
+            kwargs["text_recognition_model_dir"] = rec_dir
 
 
 def _try_easyocr():
@@ -220,7 +267,12 @@ def read_text_boxes(image_rgb: np.ndarray, allowlist: str | None = None) -> list
     boxes: list[OCRTextBox] = []
     if _engine == "paddle":
         try:
-            result = reader.predict(img)
+            # PaddleOCR/PaddleX predictor objects are process-global here and
+            # can be reached by overlapping LiveDemo workers during EXE
+            # stop/start. Keep inference serialized; concurrent predict()
+            # calls can return unstable low-confidence text.
+            with _predict_lock:
+                result = reader.predict(img)
         except Exception as exc:
             _logger.debug("paddle ocr boxes call failed: %s", exc)
             return []
@@ -248,7 +300,8 @@ def read_text_boxes(image_rgb: np.ndarray, allowlist: str | None = None) -> list
             kwargs = {"detail": 1}
             if allowlist is not None:
                 kwargs["allowlist"] = allowlist
-            result = reader.readtext(img, **kwargs)
+            with _predict_lock:
+                result = reader.readtext(img, **kwargs)
         except Exception as exc:
             _logger.debug("easyocr boxes call failed: %s", exc)
             return []
@@ -265,6 +318,21 @@ def read_text_boxes(image_rgb: np.ndarray, allowlist: str | None = None) -> list
             ))
 
     boxes.sort(key=lambda b: (b.y0, b.x0))
+    if boxes:
+        _logger.debug(
+            "ocr boxes engine=%s allowlist=%r image=%s boxes=%s",
+            _engine,
+            allowlist,
+            tuple(image_rgb.shape),
+            [
+                {
+                    "text": b.text,
+                    "conf": round(b.confidence, 3),
+                    "bbox": b.bbox,
+                }
+                for b in boxes
+            ],
+        )
     return boxes
 
 
@@ -286,10 +354,12 @@ def read_fame(crop_rgb: np.ndarray) -> tuple[int | None, str, float]:
     cache_key = big.tobytes()
     cached = _cache_get(_fame_cache, cache_key)
     if cached is not None:
+        _logger.debug("read_fame cache hit image=%s out=%r", tuple(crop_rgb.shape), cached)
         return cached
     fragments = _readtext(reader, big, "0123456789,")
     if not fragments:
         out = (None, "", 0.0)
+        _logger.debug("read_fame no fragments image=%s prepped=%s", tuple(crop_rgb.shape), tuple(big.shape))
         _cache_set(_fame_cache, cache_key, out)
         return out
     text = "".join(t for t, _ in fragments)
@@ -302,6 +372,10 @@ def read_fame(crop_rgb: np.ndarray) -> tuple[int | None, str, float]:
         return out
     value = _parse_with_trim(digits)
     out = (value, text, avg_conf) if value is not None else (None, text, avg_conf)
+    _logger.debug(
+        "read_fame fragments image=%s prepped=%s fragments=%r text=%r digits=%r value=%r conf=%.3f",
+        tuple(crop_rgb.shape), tuple(big.shape), fragments, text, digits, value, avg_conf,
+    )
     _cache_set(_fame_cache, cache_key, out)
     return out
 
@@ -341,15 +415,21 @@ def read_class(crop_rgb: np.ndarray) -> tuple[str, float]:
     cache_key = big.tobytes()
     cached = _cache_get(_class_cache, cache_key)
     if cached is not None:
+        _logger.debug("read_class cache hit image=%s out=%r", tuple(crop_rgb.shape), cached)
         return cached
     allowlist = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ:' "
     fragments = _readtext(reader, big, allowlist)
     if not fragments:
         out = ("", 0.0)
+        _logger.debug("read_class no fragments image=%s prepped=%s", tuple(crop_rgb.shape), tuple(big.shape))
         _cache_set(_class_cache, cache_key, out)
         return out
     text = " ".join(t.strip() for t, _ in fragments if t.strip())
     avg_conf = float(np.mean([c for _, c in fragments])) if fragments else 0.0
     out = (text, avg_conf)
+    _logger.debug(
+        "read_class fragments image=%s prepped=%s fragments=%r text=%r conf=%.3f",
+        tuple(crop_rgb.shape), tuple(big.shape), fragments, text, avg_conf,
+    )
     _cache_set(_class_cache, cache_key, out)
     return out

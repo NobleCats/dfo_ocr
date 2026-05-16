@@ -54,7 +54,6 @@ APP_DISPLAY_NAME = f"{APP_NAME} {APP_VERSION}"
 APP_VERSION_LABEL = f"{APP_VERSION} ({_BUILD_ID})"
 INSTANCE_MUTEX_NAME = r"Local\DFOGANG_RaidHelper_v1"
 
-PORTABLE_DIR = Path(r"C:\Users\Noble\Desktop\works\DFOGANG")
 DEFAULT_CAPTURE_INTERVAL_MS = 0
 NEOPLE_KEY_URL = "https://www.dfoneople.com/developers/manage/app/list"
 
@@ -91,11 +90,17 @@ class _DataBlob(ctypes.Structure):
     ]
 
 
-def bundled_or_portable(filename: str) -> Path:
-    bundled = resource_path(filename)
-    if bundled.exists():
-        return bundled
-    return PORTABLE_DIR / filename
+def bundled_resource(filename: str) -> Path | None:
+    """Return a bundled app resource, or None if it is unavailable.
+
+    Release builds must not probe developer-machine absolute paths. A missing
+    optional resource should degrade to Qt defaults instead of aborting startup.
+    """
+    path = resource_path(filename)
+    try:
+        return path if path.exists() else None
+    except OSError:
+        return None
 
 
 def acquire_single_instance() -> bool:
@@ -356,8 +361,8 @@ class ManualGuideOverlay(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         active = self._hover_handle or self._dragging
-        color = QColor(0, 154, 218, 230 if active else 80)
-        width = 3 if active else 1
+        color = QColor(0, 154, 218, 255 if active else 220)
+        width = 4 if active else 3
         painter.setPen(QPen(color, width))
         painter.setBrush(Qt.BrushStyle.NoBrush)
 
@@ -373,9 +378,9 @@ class ManualGuideOverlay(QWidget):
             painter.drawLine(x0, y, x1, y)
 
         handle = self._handle_rect()
-        handle_color = QColor(0, 154, 218, 240 if active else 95)
-        painter.setPen(QPen(handle_color, 2 if active else 1))
-        painter.setBrush(QColor(0, 154, 218, 70 if active else 20))
+        handle_color = QColor(0, 154, 218, 255 if active else 240)
+        painter.setPen(QPen(handle_color, 3 if active else 2))
+        painter.setBrush(QColor(0, 154, 218, 140 if active else 120))
         painter.drawRect(handle)
         painter.end()
 
@@ -427,13 +432,14 @@ class ControlWindow(QWidget):
         self._zombie_demos: list = []
 
         self.drag_pos: QPoint | None = None
-        self.logo = QPixmap(str(bundled_or_portable("logo.png")))
+        logo_path = bundled_resource("logo.png") or bundled_resource("ch49gangraidlogo.png")
+        self.logo = QPixmap(str(logo_path)) if logo_path is not None else QPixmap()
         self.font_family = self._load_font()
 
         self.setWindowTitle(APP_DISPLAY_NAME)
 
-        icon_path = bundled_or_portable("ch49gangraidlogo.ico")
-        if icon_path.exists():
+        icon_path = bundled_resource("ch49gangraidlogo.ico")
+        if icon_path is not None:
             self.setWindowIcon(QIcon(str(icon_path)))
 
         self.setWindowFlags(
@@ -446,13 +452,16 @@ class ControlWindow(QWidget):
         self._build_ui()
 
     def _load_font(self) -> str:
-        font_path = bundled_or_portable("DNFForgedBlade-Bold.ttf")
-        if font_path.exists():
-            font_id = QFontDatabase.addApplicationFont(str(font_path))
-            if font_id != -1:
-                families = QFontDatabase.applicationFontFamilies(font_id)
-                if families:
-                    return families[0]
+        font_path = bundled_resource("DNFForgedBlade-Bold.ttf")
+        if font_path is not None:
+            try:
+                font_id = QFontDatabase.addApplicationFont(str(font_path))
+                if font_id != -1:
+                    families = QFontDatabase.applicationFontFamilies(font_id)
+                    if families:
+                        return families[0]
+            except OSError:
+                pass
         return "Segoe UI"
 
     def _build_ui(self) -> None:

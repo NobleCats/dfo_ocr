@@ -49,7 +49,7 @@ Logs are written to:
 Use this when Python dependencies are available on the tester machine:
 
 ```powershell
-C:\Users\Noble\AppData\Local\Programs\Python\Python310\python.exe src\app.py --test-image samples\party_apply_03.png
+python src\app.py --test-image samples\party_apply_03.png
 ```
 
 Expected output includes:
@@ -67,7 +67,7 @@ and `1` when it does not.
 From the repository root:
 
 ```powershell
-powershell.exe -ExecutionPolicy Bypass -File tools\build_full_onefile_release.ps1 -Python C:\Users\Noble\AppData\Local\Programs\Python\Python310\python.exe -Version v1.0beta
+powershell.exe -ExecutionPolicy Bypass -File tools\build_full_onefile_release.ps1 -Python python -Version v1.0beta
 ```
 
 The output EXE is written under:
@@ -79,6 +79,6 @@ release_dist\
 Before sending a build to testers, verify both:
 
 ```powershell
-C:\Users\Noble\AppData\Local\Programs\Python\Python310\python.exe -m py_compile src\capture.py src\party_apply.py src\app.py src\gui_app.py
-C:\Users\Noble\AppData\Local\Programs\Python\Python310\python.exe src\app.py --test-image samples\party_apply_03.png
+python -m py_compile src\capture.py src\party_apply.py src\app.py src\gui_app.py
+python src\app.py --test-image samples\party_apply_03.png
 ```
