@@ -40,13 +40,13 @@ function Import-MsvcEnvironment {
         }
     }
 
-    & cl /? 2>$null | Out-Null
+    & cmd.exe /c "cl /? >NUL 2>NUL"
     if ($LASTEXITCODE -ne 0) {
         throw "MSVC cl.exe is not available. Install Visual Studio Build Tools with Desktop development with C++ and Windows SDK."
     }
 
     "#include <io.h>" | Set-Content -Encoding ASCII "build_secure_check_io.c"
-    & cl /nologo /c build_secure_check_io.c /Fobuild_secure_check_io.obj 2>$null | Out-Null
+    & cmd.exe /c "cl /nologo /c build_secure_check_io.c /Fobuild_secure_check_io.obj >NUL 2>NUL"
     if ($LASTEXITCODE -ne 0) {
         throw "Windows SDK headers are not available. Install Visual Studio Build Tools with Windows 10/11 SDK."
     }
