@@ -87,6 +87,9 @@ GUIDE_REF_ROW_HEIGHT = 64
 GUIDE_REF_ROW_PITCH = 74
 GUIDE_MAX_ROWS = 9
 
+MAGNET_SEARCH_PAD = 150          # px of padding around guide when searching for template
+MAGNET_MIN_MATCH_SCORE = 0.40   # cv2.TM_CCOEFF_NORMED threshold for confident match
+
 ACTION_BUTTON_SIZE = 36
 ACTION_ICON_SIZE = 22
 
@@ -680,6 +683,8 @@ class ControlWindow(QWidget):
         self.manual_party_apply = self._load_manual_party_apply()
         self._manual_mode: bool = bool(load_settings().get("manual_mode", False))
 
+        self._magnet_enabled: bool = False
+
         # Closed-but-not-yet-collected demos. Keep strong refs so worker
         # threads can finish final frames without touching destroyed QObjects.
         self._zombie_demos: list = []
@@ -812,11 +817,19 @@ class ControlWindow(QWidget):
         self.area_btn.setToolTip("Show or hide the manual request-window guide.")
         self.area_btn.clicked.connect(lambda _: self.toggle_manual_guide())
 
+        self.magnet_btn = QPushButton("MAG")
+        self.magnet_btn.setFixedSize(48, ACTION_BUTTON_SIZE)
+        self.magnet_btn.setToolTip(
+            "Magnet: auto-align guide position and scale by detecting the party-apply window header."
+        )
+        self.magnet_btn.clicked.connect(self._toggle_magnet)
+
         self._manual_row = QWidget()
         manual_row = QHBoxLayout(self._manual_row)
         manual_row.setContentsMargins(0, 0, 0, 0)
         manual_row.setSpacing(8)
         manual_row.addWidget(self.scale_slider, 1)
+        manual_row.addWidget(self.magnet_btn)
         manual_row.addWidget(self.area_btn)
         root.addWidget(self._manual_row)
 
@@ -1094,6 +1107,111 @@ class ControlWindow(QWidget):
         else:
             self.manual_party_apply["scale"] = scale
             self._save_manual_party_apply()
+
+    def _toggle_magnet(self) -> None:
+        self._magnet_enabled = not self._magnet_enabled
+        if self._magnet_enabled:
+            self.magnet_btn.setStyleSheet(
+                f"background-color: {HIGHLIGHT_TEXT_COLOR}; color: #000000;"
+            )
+            self._run_magnet_align()
+        else:
+            self.magnet_btn.setStyleSheet("")
+
+    def _run_magnet_align(self) -> None:
+        """Template-match guide_tab.png on screen to fine-tune guide position and scale."""
+        import cv2
+        import numpy as np
+        import mss as _mss
+        from PIL import Image
+
+        guide = self.guide_overlay
+        if guide is not None:
+            gx = guide.guide_x
+            gy = guide.guide_y
+            current_scale = guide.scale
+        elif "guide_x_abs" in self.manual_party_apply:
+            gx = float(self.manual_party_apply["guide_x_abs"])
+            gy = float(self.manual_party_apply["guide_y_abs"])
+            current_scale = float(self.manual_party_apply.get("scale", 1.0))
+        else:
+            return
+
+        tab_path = bundled_resource("resources/guide_tab.png")
+        if tab_path is None:
+            return
+
+        gw = GUIDE_REF_WINDOW_SIZE[0] * current_scale
+        gh = GUIDE_REF_WINDOW_SIZE[1] * current_scale
+        pad = MAGNET_SEARCH_PAD
+        sx = int(max(0, gx - pad))
+        sy = int(max(0, gy - pad))
+        sw = int(gw + pad * 2)
+        sh = int(gh + pad * 2)
+
+        try:
+            with _mss.mss() as sct:
+                shot = sct.grab({"left": sx, "top": sy, "width": sw, "height": sh})
+            search_img = np.array(shot)[:, :, :3]  # BGRA → BGR
+        except Exception:
+            return
+
+        try:
+            tab_rgba = np.array(Image.open(str(tab_path)).convert("RGBA"))
+            tab_bgr = tab_rgba[:, :, :3][:, :, ::-1].copy()  # RGBA→RGB→BGR
+        except Exception:
+            return
+
+        ref_w, ref_h = GUIDE_REF_MARKER_SIZE
+        best_score = -1.0
+        best_mx = best_my = 0
+        best_scale = current_scale
+
+        for pct in range(85, 116, 3):
+            s = max(0.35, min(1.8, current_scale * pct / 100.0))
+            tw = int(round(ref_w * s))
+            th = int(round(ref_h * s))
+            if tw < 10 or th < 3 or tw >= search_img.shape[1] or th >= search_img.shape[0]:
+                continue
+            tmpl = cv2.resize(tab_bgr, (tw, th), interpolation=cv2.INTER_AREA)
+            result = cv2.matchTemplate(search_img, tmpl, cv2.TM_CCOEFF_NORMED)
+            _, max_val, _, max_loc = cv2.minMaxLoc(result)
+            if max_val > best_score:
+                best_score = max_val
+                best_mx, best_my = max_loc
+                best_scale = s
+
+        if best_score < MAGNET_MIN_MATCH_SCORE:
+            return
+
+        new_marker_x = float(sx + best_mx)
+        new_marker_y = float(sy + best_my)
+        new_guide_x = new_marker_x - GUIDE_REF_MARKER_LEFT_IN_WINDOW * best_scale
+        new_guide_y = new_marker_y - GUIDE_REF_MARKER_TOP_IN_WINDOW * best_scale
+
+        if guide is not None:
+            guide.guide_x = new_guide_x
+            guide.guide_y = new_guide_y
+            guide.scale = best_scale
+            guide.update()
+            guide.moved.emit()
+            guide.scale_changed.emit(int(round(best_scale * 100)))
+        else:
+            s = best_scale
+            self.manual_party_apply = {
+                "enabled": True,
+                "guide_x_abs": round(new_guide_x, 2),
+                "guide_y_abs": round(new_guide_y, 2),
+                "guide_w": round(GUIDE_REF_WINDOW_SIZE[0] * s, 2),
+                "guide_h": round(GUIDE_REF_WINDOW_SIZE[1] * s, 2),
+                "marker_x_abs": round(new_marker_x, 2),
+                "marker_y_abs": round(new_marker_y, 2),
+                "scale": round(s, 4),
+            }
+            self._save_manual_party_apply()
+            self.scale_slider.blockSignals(True)
+            self.scale_slider.setValue(int(round(s * 100)))
+            self.scale_slider.blockSignals(False)
 
     def _sync_manual_from_guide(self) -> None:
         guide = self.guide_overlay
