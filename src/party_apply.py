@@ -185,6 +185,7 @@ class PartyApplyDetection:
     scale: float  # 1.0 = 69% reference capture
     marker_xywh: tuple[int, int, int, int]
     rows_top_y: list[int]
+    is_manual: bool = False  # True when built from user-calibrated AREA guide
 
 
 @dataclass
@@ -835,7 +836,7 @@ def build_manual_party_apply_detection(
     scale = max(0.2, float(scale))
     marker_w = int(round(REF_MARKER_SIZE[0] * scale))
     marker_h = int(round(REF_MARKER_SIZE[1] * scale))
-    return _build_detection(
+    det = _build_detection(
         scale=scale,
         score=1.0,
         marker_xy=(int(round(marker_xy[0])), int(round(marker_xy[1]))),
@@ -846,6 +847,8 @@ def build_manual_party_apply_detection(
         image_h=image_h,
         grid_score=1.0,
     )
+    det.is_manual = True
+    return det
 
 
 # ---------------------------------------------------------------------------
@@ -956,7 +959,7 @@ def recognize_party_apply(
                     break
                 continue
 
-            if not _has_pending_action_button(image_rgb, status_x, (row_top, check_y1), s):
+            if not det.is_manual and not _has_pending_action_button(image_rgb, status_x, (row_top, check_y1), s):
                 _logger.debug(
                     "row %d gate REJECT no-action bright=%d transitions=%d fame_bright=%d fame_trans=%d name_bright=%d name_trans=%d",
                     i, bright_count, transitions, fame_bright, fame_trans, name_bright, name_trans,

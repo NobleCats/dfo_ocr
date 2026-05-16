@@ -311,6 +311,7 @@ class ManualGuideOverlay(QWidget):
         self._resizing = False
         self._hover_handle = False
         self._hover_resize = False
+        self._running = False
         self._last_global = QPoint()
         self._screen_maps: list[tuple[QRect, QRectF, float]] = []
         self._title_pixmap = self._load_guide_pixmap("resources/guide_title.png")
@@ -421,6 +422,14 @@ class ManualGuideOverlay(QWidget):
         self._refresh_geometry()
         self._force_topmost()
         self._log_geometry("show")
+
+    def set_running(self, running: bool) -> None:
+        self._running = running
+        self._dragging = False
+        self._resizing = False
+        self._hover_handle = False
+        self._hover_resize = False
+        self.update()
 
     def set_scale(self, scale: float) -> None:
         self.scale = max(0.35, min(1.8, float(scale)))
@@ -539,8 +548,8 @@ class ManualGuideOverlay(QWidget):
             painter.drawPixmap(bx, by, scaled_btn)
         painter.setOpacity(1.0)
 
-        drag_active = self._hover_handle or self._dragging
-        resize_active = self._hover_resize or self._resizing
+        drag_active = not self._running and (self._hover_handle or self._dragging)
+        resize_active = not self._running and (self._hover_resize or self._resizing)
         any_active = drag_active or resize_active
         outline_color = QColor(255, 0, 0, 255) if any_active else QColor(0, 190, 255, 255)
         painter.setPen(QPen(outline_color, 6 if any_active else 4))
@@ -558,16 +567,25 @@ class ManualGuideOverlay(QWidget):
             row_top = guide.top() + int(round((GUIDE_REF_FIRST_ROW_TOP_IN_WINDOW + row * GUIDE_REF_ROW_PITCH) * s))
             painter.drawRect(QRect(row_left, row_top, row_width, row_height))
 
-        # Drag handle — top-left, yellow.
+        # Drag handle — top-left.  Gray when locked (running), yellow when interactive.
         handle = self._handle_rect()
-        painter.setPen(QPen(QColor(255, 255, 0, 255), 4 if drag_active else 3))
-        painter.setBrush(QColor(255, 255, 0, 210 if drag_active else 170))
+        if self._running:
+            hc = QColor(160, 160, 160, 200)
+            painter.setPen(QPen(QColor(160, 160, 160, 220), 3))
+        else:
+            hc = QColor(255, 255, 0, 210 if drag_active else 170)
+            painter.setPen(QPen(QColor(255, 255, 0, 255), 4 if drag_active else 3))
+        painter.setBrush(hc)
         painter.drawRect(handle)
 
-        # Resize handle — bottom-right, teal/orange.
+        # Resize handle — bottom-right.  Gray when locked (running), teal/orange when interactive.
         resize_handle = self._resize_handle_rect()
-        rc = QColor(255, 120, 0, 255) if resize_active else QColor(0, 220, 180, 255)
-        painter.setPen(QPen(rc, 4 if resize_active else 3))
+        if self._running:
+            rc = QColor(160, 160, 160, 200)
+            painter.setPen(QPen(QColor(160, 160, 160, 220), 3))
+        else:
+            rc = QColor(255, 120, 0, 255) if resize_active else QColor(0, 220, 180, 255)
+            painter.setPen(QPen(rc, 4 if resize_active else 3))
         painter.setBrush(QColor(rc.red(), rc.green(), rc.blue(), 210 if resize_active else 170))
         painter.drawRect(resize_handle)
 
@@ -575,12 +593,13 @@ class ManualGuideOverlay(QWidget):
 
     def mouseMoveEvent(self, event) -> None:
         pos = event.position().toPoint()
-        over_drag = self._handle_rect().contains(pos)
-        over_resize = self._resize_handle_rect().contains(pos)
-        if over_drag != self._hover_handle or over_resize != self._hover_resize:
-            self._hover_handle = over_drag
-            self._hover_resize = over_resize
-            self.update()
+        if not self._running:
+            over_drag = self._handle_rect().contains(pos)
+            over_resize = self._resize_handle_rect().contains(pos)
+            if over_drag != self._hover_handle or over_resize != self._hover_resize:
+                self._hover_handle = over_drag
+                self._hover_resize = over_resize
+                self.update()
         if self._dragging:
             current = event.globalPosition().toPoint()
             delta = current - self._last_global
@@ -600,6 +619,8 @@ class ManualGuideOverlay(QWidget):
             self.update()
 
     def mousePressEvent(self, event) -> None:
+        if self._running:
+            return
         if event.button() == Qt.MouseButton.LeftButton:
             pos = event.position().toPoint()
             if self._handle_rect().contains(pos):
@@ -1083,9 +1104,7 @@ class ControlWindow(QWidget):
             save_api_key(self.api_key_input.text())
             self._sync_manual_from_guide()
             if self.guide_overlay is not None:
-                self.guide_overlay.close()
-                self.guide_overlay = None
-                self.area_btn.setText("AREA")
+                self.guide_overlay.set_running(True)
             from app import LiveDemo
 
             manual_cfg = None
@@ -1133,6 +1152,8 @@ class ControlWindow(QWidget):
             del self._zombie_demos[:-2]
 
         self.demo = None
+        if self.guide_overlay is not None:
+            self.guide_overlay.set_running(False)
         self.progress.hide()
         self._set_controls_enabled(True)
         self.toggle_btn.setEnabled(True)
@@ -1163,7 +1184,8 @@ class ControlWindow(QWidget):
         if self.demo is not None:
             self.demo.close()
             self.demo = None
-
+        if self.guide_overlay is not None:
+            self.guide_overlay.set_running(False)
         self.progress.hide()
         self._set_controls_enabled(True)
         self.toggle_btn.setEnabled(True)
