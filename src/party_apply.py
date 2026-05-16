@@ -903,6 +903,15 @@ def recognize_party_apply(
         check_x1 = min(W, name_right_for_check)
         check_y1 = min(H, row_top + pitch)
 
+        # Manual mode: skip completely-dark rows (no text possible).
+        # This prevents sending empty rows below the applicant list to OCR.
+        if det.is_manual and check_x1 - check_x0 >= 10 and check_y1 - row_top >= 5:
+            if int(image_rgb[row_top:check_y1, check_x0:check_x1].max()) < 15:
+                empties_since_real += 1
+                if empties_since_real >= 3:
+                    break
+                continue
+
         if not det.is_manual and check_x1 - check_x0 >= 10 and check_y1 - row_top >= 5:
             row_strip = image_rgb[row_top:check_y1, check_x0:check_x1]
             gray_max = row_strip.max(axis=2)
