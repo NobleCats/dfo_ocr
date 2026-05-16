@@ -284,6 +284,7 @@ class _CompositeOCRResult:
 
 
 _ROW_OCR_CACHE: dict[bytes, PartyApplyRow] = {}
+_COMPOSITE_RESULT_CACHE: dict[bytes, _CompositeOCRResult] = {}
 
 
 def _cache_party_apply_row(sig: bytes, row: PartyApplyRow) -> None:
@@ -903,10 +904,10 @@ def recognize_party_apply(
         check_x1 = min(W, name_right_for_check)
         check_y1 = min(H, row_top + pitch)
 
-        # Manual mode: skip completely-dark rows (no text possible).
-        # This prevents sending empty rows below the applicant list to OCR.
+        # Manual mode: skip rows without enough brightness to contain applicant text.
+        # Logs show empty rows have max=36-40 while real rows have max=255.
         if det.is_manual and check_x1 - check_x0 >= 10 and check_y1 - row_top >= 5:
-            if int(image_rgb[row_top:check_y1, check_x0:check_x1].max()) < 15:
+            if int(image_rgb[row_top:check_y1, check_x0:check_x1].max()) < 50:
                 empties_since_real += 1
                 if empties_since_real >= 3:
                     break
@@ -1043,6 +1044,25 @@ def recognize_party_apply(
             ],
         )
         class_x_text = (class_x[0] + int(round(CLASS_BADGE_RIGHT_PAD * s)), class_x[1])
+        cached_ocr = _COMPOSITE_RESULT_CACHE.get(row_sig)
+        if cached_ocr is not None:
+            proto = _PendingOCRRow(
+                index=i, y_abs=(top_y0, bot_y1), row_sig=row_sig,
+                fame_x=fame_x_dig, fame_y=(top_y0, top_y1),
+                name_x=name_x, name_y=(name_y0, name_y1),
+                class_x=class_x_text, class_y=(bot_y0, bot_y1),
+                adv_x=adv_x, adv_y=(top_y0, top_y1), scale=s,
+            )
+            row = _build_row_from_ocr_result(image_rgb, proto, cached_ocr)
+            if not row.is_empty:
+                out_by_index[i] = row
+                empties_since_real = 0
+            else:
+                empties_since_real += 1
+                if (out_by_index and empties_since_real >= 3) or \
+                   (not out_by_index and empties_since_real >= ROW_GATE_MAX_INITIAL_EMPTY_ROWS):
+                    break
+            continue
         pending_rows.append(_PendingOCRRow(
             index=i,
             y_abs=(top_y0, bot_y1),
@@ -1125,14 +1145,14 @@ def recognize_party_apply(
     if pending_rows:
         composite_results = _recognize_rows_composite(image_rgb, pending_rows)
         for pos, pending in enumerate(pending_rows):
-            row = _build_row_from_ocr_result(
-                image_rgb,
-                pending,
-                composite_results.get(pos, _CompositeOCRResult()),
-            )
+            result = composite_results.get(pos, _CompositeOCRResult())
+            _COMPOSITE_RESULT_CACHE[pending.row_sig] = result
+            row = _build_row_from_ocr_result(image_rgb, pending, result)
             if row.is_empty:
                 continue
             out_by_index[pending.index] = row
+        while len(_COMPOSITE_RESULT_CACHE) > ROW_OCR_CACHE_CAP:
+            del _COMPOSITE_RESULT_CACHE[next(iter(_COMPOSITE_RESULT_CACHE))]
 
     return [out_by_index[i] for i in sorted(out_by_index)]
 
