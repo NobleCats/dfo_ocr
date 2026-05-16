@@ -75,6 +75,12 @@ GUIDE_REF_MARKER_LEFT_IN_WINDOW = 16
 GUIDE_REF_MARKER_TOP_IN_WINDOW = 110
 GUIDE_REF_WINDOW_SIZE = (1096, 896)
 GUIDE_REF_TITLE_BOTTOM_Y = 32
+GUIDE_REF_TITLE_LEFT_OFFSET = 2       # px from guide left
+GUIDE_REF_TITLE_SIZE = (1092, 32)     # guide_title.png dimensions
+GUIDE_REF_BUTTON_SIZE = (276, 40)     # guide_button.png dimensions
+GUIDE_REF_BUTTON_RIGHT_MARGIN = 20    # px from guide right edge
+GUIDE_REF_BUTTON_BOTTOM_MARGIN = 20   # px from guide bottom edge
+GUIDE_OVERLAY_IMAGE_ALPHA = 0.10      # 10% opacity for reference images
 GUIDE_REF_SLOT_LEFT_IN_WINDOW = 18
 GUIDE_REF_FIRST_ROW_TOP_IN_WINDOW = 147
 GUIDE_REF_ROW_WIDTH = 1042
@@ -305,7 +311,19 @@ class ManualGuideOverlay(QWidget):
         self._hover_handle = False
         self._last_global = QPoint()
         self._screen_maps: list[tuple[QRect, QRectF, float]] = []
+        self._title_pixmap = self._load_guide_pixmap("resources/guide_title.png")
+        self._tab_pixmap = self._load_guide_pixmap("resources/guide_tab.png")
+        self._button_pixmap = self._load_guide_pixmap("resources/guide_button.png")
         self._refresh_geometry()
+
+    @staticmethod
+    def _load_guide_pixmap(rel_path: str) -> "QPixmap":
+        p = bundled_resource(rel_path)
+        if p is not None:
+            pm = QPixmap(str(p))
+            if not pm.isNull():
+                return pm
+        return QPixmap()
 
     @property
     def marker_x(self) -> float:
@@ -470,20 +488,58 @@ class ManualGuideOverlay(QWidget):
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+
+        guide = self._guide_rect()
+        marker = self._marker_rect()
+        s = self.scale
+
+        # Draw reference images at 10% opacity as alignment aids.
+        painter.setOpacity(GUIDE_OVERLAY_IMAGE_ALPHA)
+        if not self._title_pixmap.isNull():
+            tw = int(round(GUIDE_REF_TITLE_SIZE[0] * s))
+            th = int(round(GUIDE_REF_TITLE_SIZE[1] * s))
+            scaled_title = self._title_pixmap.scaled(
+                tw, th,
+                Qt.AspectRatioMode.IgnoreAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            painter.drawPixmap(
+                guide.left() + int(round(GUIDE_REF_TITLE_LEFT_OFFSET * s)),
+                guide.top(),
+                scaled_title,
+            )
+        if not self._tab_pixmap.isNull():
+            scaled_tab = self._tab_pixmap.scaled(
+                marker.width(), marker.height(),
+                Qt.AspectRatioMode.IgnoreAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            painter.drawPixmap(marker.left(), marker.top(), scaled_tab)
+        if not self._button_pixmap.isNull():
+            bw = int(round(GUIDE_REF_BUTTON_SIZE[0] * s))
+            bh = int(round(GUIDE_REF_BUTTON_SIZE[1] * s))
+            scaled_btn = self._button_pixmap.scaled(
+                bw, bh,
+                Qt.AspectRatioMode.IgnoreAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            bx = guide.right() - int(round(GUIDE_REF_BUTTON_RIGHT_MARGIN * s)) - bw
+            by = guide.bottom() - int(round(GUIDE_REF_BUTTON_BOTTOM_MARGIN * s)) - bh
+            painter.drawPixmap(bx, by, scaled_btn)
+        painter.setOpacity(1.0)
+
         active = self._hover_handle or self._dragging
         color = QColor(255, 0, 0, 255) if active else QColor(0, 190, 255, 255)
         width = 6 if active else 4
         painter.setPen(QPen(color, width))
         painter.setBrush(Qt.BrushStyle.NoBrush)
 
-        guide = self._guide_rect()
-        marker = self._marker_rect()
         painter.drawRect(guide)
-        title_y = guide.top() + int(round(GUIDE_REF_TITLE_BOTTOM_Y * self.scale))
+        title_y = guide.top() + int(round(GUIDE_REF_TITLE_BOTTOM_Y * s))
         painter.drawLine(guide.left(), title_y, guide.right(), title_y)
         painter.drawRect(marker)
 
-        s = self.scale
         row_left = guide.left() + int(round(GUIDE_REF_SLOT_LEFT_IN_WINDOW * s))
         row_width = int(round(GUIDE_REF_ROW_WIDTH * s))
         row_height = int(round(GUIDE_REF_ROW_HEIGHT * s))
@@ -547,13 +603,13 @@ class ControlWindow(QWidget):
         self._zombie_demos: list = []
 
         self.drag_pos: QPoint | None = None
-        logo_path = bundled_resource("logo.png") or bundled_resource("ch49gangraidlogo.png")
+        logo_path = bundled_resource("resources/ch49gangraidlogo.png")
         self.logo = QPixmap(str(logo_path)) if logo_path is not None else QPixmap()
         self.font_family = self._load_font()
 
         self.setWindowTitle(APP_DISPLAY_NAME)
 
-        icon_path = bundled_resource("ch49gangraidlogo.ico")
+        icon_path = bundled_resource("resources/ch49gangraidlogo.ico")
         if icon_path is not None:
             self.setWindowIcon(QIcon(str(icon_path)))
 
@@ -567,7 +623,7 @@ class ControlWindow(QWidget):
         self._build_ui()
 
     def _load_font(self) -> str:
-        font_path = bundled_resource("DNFForgedBlade-Bold.ttf")
+        font_path = bundled_resource("resources/DNFForgedBlade-Bold.ttf")
         if font_path is not None:
             try:
                 font_id = QFontDatabase.addApplicationFont(str(font_path))
