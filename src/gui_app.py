@@ -503,7 +503,7 @@ class ManualGuideOverlay(QWidget):
     def _handle_rect(self) -> QRect:
         guide = self._guide_rect()
         size = max(14, int(round(18 * self.scale)))
-        return QRect(guide.left(), guide.top(), size, size)
+        return QRect(guide.right() - size, guide.top(), size, size)
 
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
@@ -1109,21 +1109,44 @@ class ControlWindow(QWidget):
             self._save_manual_party_apply()
 
     def _toggle_magnet(self) -> None:
-        self._magnet_enabled = not self._magnet_enabled
         if self._magnet_enabled:
+            self._set_magnet_active(False)
+            return
+
+        self._set_magnet_active(True)
+        try:
+            matched = self._run_magnet_align()
+        except Exception as exc:
+            matched = False
+            _append_debug_log(
+                "manual_guide.log",
+                f"magnet failed: {type(exc).__name__}: {exc}",
+            )
+        if not matched:
+            self._set_magnet_active(False)
+
+    def _set_magnet_active(self, active: bool) -> None:
+        self._magnet_enabled = active
+        if active:
             self.magnet_btn.setStyleSheet(
                 f"background-color: {HIGHLIGHT_TEXT_COLOR}; color: #000000;"
             )
-            self._run_magnet_align()
         else:
             self.magnet_btn.setStyleSheet("")
 
-    def _run_magnet_align(self) -> None:
+    def _run_magnet_align(self) -> bool:
         """Template-match guide_tab.png on screen to fine-tune guide position and scale."""
-        import cv2
-        import numpy as np
-        import mss as _mss
-        from PIL import Image
+        try:
+            import cv2
+            import numpy as np
+            import mss as _mss
+            from PIL import Image
+        except Exception as exc:
+            _append_debug_log(
+                "manual_guide.log",
+                f"magnet import failed: {type(exc).__name__}: {exc}",
+            )
+            return False
 
         guide = self.guide_overlay
         if guide is not None:
@@ -1135,34 +1158,51 @@ class ControlWindow(QWidget):
             gy = float(self.manual_party_apply["guide_y_abs"])
             current_scale = float(self.manual_party_apply.get("scale", 1.0))
         else:
-            return
+            return False
 
         tab_path = bundled_resource("resources/guide_tab.png")
         if tab_path is None:
-            return
+            _append_debug_log("manual_guide.log", "magnet failed: guide_tab.png missing")
+            return False
 
         gw = GUIDE_REF_WINDOW_SIZE[0] * current_scale
         gh = GUIDE_REF_WINDOW_SIZE[1] * current_scale
         pad = MAGNET_SEARCH_PAD
-        sx = int(max(0, gx - pad))
-        sy = int(max(0, gy - pad))
-        sw = int(gw + pad * 2)
-        sh = int(gh + pad * 2)
 
         try:
             with _mss.mss() as sct:
+                virtual = sct.monitors[0]
+                vx = int(virtual.get("left", 0))
+                vy = int(virtual.get("top", 0))
+                vw = int(virtual.get("width", 0))
+                vh = int(virtual.get("height", 0))
+                sx = int(max(vx, gx - pad))
+                sy = int(max(vy, gy - pad))
+                ex = int(min(vx + vw, gx + gw + pad))
+                ey = int(min(vy + vh, gy + gh + pad))
+                sw = max(0, ex - sx)
+                sh = max(0, ey - sy)
+                if sw < 20 or sh < 20:
+                    _append_debug_log("manual_guide.log", "magnet failed: empty search region")
+                    return False
                 shot = sct.grab({"left": sx, "top": sy, "width": sw, "height": sh})
-            # .copy() is required: BGRA[:,:,:3] is a non-contiguous slice and
-            # cv2.matchTemplate will raise cv2.error on non-contiguous arrays.
-            search_img = np.array(shot)[:, :, :3].copy()
-        except Exception:
-            return
+            search_img = np.ascontiguousarray(np.array(shot)[:, :, :3])
+        except Exception as exc:
+            _append_debug_log(
+                "manual_guide.log",
+                f"magnet capture failed: {type(exc).__name__}: {exc}",
+            )
+            return False
 
         try:
             tab_rgba = np.array(Image.open(str(tab_path)).convert("RGBA"))
-            tab_bgr = tab_rgba[:, :, :3][:, :, ::-1].copy()  # RGBA→RGB→BGR
-        except Exception:
-            return
+            tab_bgr = np.ascontiguousarray(tab_rgba[:, :, :3][:, :, ::-1])
+        except Exception as exc:
+            _append_debug_log(
+                "manual_guide.log",
+                f"magnet template failed: {type(exc).__name__}: {exc}",
+            )
+            return False
 
         ref_w, ref_h = GUIDE_REF_MARKER_SIZE
         best_score = -1.0
@@ -1183,11 +1223,19 @@ class ControlWindow(QWidget):
                     best_score = max_val
                     best_mx, best_my = max_loc
                     best_scale = s
-        except Exception:
-            return
+        except Exception as exc:
+            _append_debug_log(
+                "manual_guide.log",
+                f"magnet match failed: {type(exc).__name__}: {exc}",
+            )
+            return False
 
         if best_score < MAGNET_MIN_MATCH_SCORE:
-            return
+            _append_debug_log(
+                "manual_guide.log",
+                f"magnet no match: score={best_score:.4f}",
+            )
+            return False
 
         new_marker_x = float(sx + best_mx)
         new_marker_y = float(sy + best_my)
@@ -1217,6 +1265,15 @@ class ControlWindow(QWidget):
             self.scale_slider.blockSignals(True)
             self.scale_slider.setValue(int(round(s * 100)))
             self.scale_slider.blockSignals(False)
+
+        _append_debug_log(
+            "manual_guide.log",
+            (
+                f"magnet matched score={best_score:.4f} "
+                f"marker={new_marker_x:.2f},{new_marker_y:.2f} scale={best_scale:.4f}"
+            ),
+        )
+        return True
 
     def _sync_manual_from_guide(self) -> None:
         guide = self.guide_overlay
