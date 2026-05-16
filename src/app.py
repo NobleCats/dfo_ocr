@@ -33,9 +33,9 @@ import general_ocr  # noqa: E402
 from qt_dpi import configure_qt_high_dpi  # noqa: E402
 
 
-# UI scale at which the party_apply marker was captured. Detection's `scale`
+# UI scale at which the party_apply geometry was captured. Detection's `scale`
 # is relative to this: capture-at-69%-setting → scale=1.0.
-PARTY_APPLY_REF_UI_PCT = 69.0
+PARTY_APPLY_REF_UI_PCT = 100.0
 
 
 def _norm_for_cache(s: str) -> str:

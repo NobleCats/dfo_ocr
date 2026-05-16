@@ -70,13 +70,16 @@ LOGO_TOP_MARGIN_RATIO = 0.05
 DEFAULT_WINDOW_TITLE = "Dungeon Fighter Online"
 SETTINGS_FILE = "settings.json"
 
-GUIDE_REF_MARKER_SIZE = (734, 16)
-GUIDE_REF_MARKER_LEFT_IN_WINDOW = 38
-GUIDE_REF_MARKER_TOP_IN_WINDOW = 83
-GUIDE_REF_WINDOW_SIZE = (812, 590)
-GUIDE_REF_FIRST_ROW_TOP_DY = 36
-GUIDE_REF_ROW_PITCH = 56
-GUIDE_MAX_ROWS = 6
+GUIDE_REF_MARKER_SIZE = (1050, 26)
+GUIDE_REF_MARKER_LEFT_IN_WINDOW = 13
+GUIDE_REF_MARKER_TOP_IN_WINDOW = 108
+GUIDE_REF_WINDOW_SIZE = (1091, 802)
+GUIDE_REF_SLOT_LEFT_IN_WINDOW = 15
+GUIDE_REF_FIRST_ROW_TOP_IN_WINDOW = 144
+GUIDE_REF_ROW_WIDTH = 1042
+GUIDE_REF_ROW_HEIGHT = 64
+GUIDE_REF_ROW_PITCH = 74
+GUIDE_MAX_ROWS = 9
 
 ACTION_BUTTON_SIZE = 36
 ACTION_ICON_SIZE = 22
@@ -294,14 +297,22 @@ class ManualGuideOverlay(QWidget):
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setMouseTracking(True)
-        self.marker_x = float(marker_x)
-        self.marker_y = float(marker_y)
         self.scale = float(scale)
+        self.guide_x = float(marker_x) - GUIDE_REF_MARKER_LEFT_IN_WINDOW * self.scale
+        self.guide_y = float(marker_y) - GUIDE_REF_MARKER_TOP_IN_WINDOW * self.scale
         self._dragging = False
         self._hover_handle = False
         self._last_global = QPoint()
         self._screen_maps: list[tuple[QRect, QRectF, float]] = []
         self._refresh_geometry()
+
+    @property
+    def marker_x(self) -> float:
+        return self.guide_x + GUIDE_REF_MARKER_LEFT_IN_WINDOW * self.scale
+
+    @property
+    def marker_y(self) -> float:
+        return self.guide_y + GUIDE_REF_MARKER_TOP_IN_WINDOW * self.scale
 
     def _refresh_geometry(self) -> None:
         app = QApplication.instance()
@@ -394,6 +405,7 @@ class ManualGuideOverlay(QWidget):
         self.scale = max(0.35, min(1.8, float(scale)))
         self.update()
         self.moved.emit()
+        self._log_geometry("scale")
 
     def _screen_dpr_at(self, point: QPoint) -> float:
         app = QApplication.instance()
@@ -423,6 +435,7 @@ class ManualGuideOverlay(QWidget):
             (
                 f"{reason} overlay={self.geometry().getRect()} "
                 f"global_origin={self.mapToGlobal(QPoint(0, 0)).x()},{self.mapToGlobal(QPoint(0, 0)).y()} "
+                f"guide_physical={self.guide_x:.2f},{self.guide_y:.2f} "
                 f"marker_physical={self.marker_x:.2f},{self.marker_y:.2f} scale={self.scale:.4f} "
                 f"guide={guide.getRect()} marker={marker.getRect()} handle={handle.getRect()} "
                 f"maps={[ (m[0].getRect(), (m[1].x(), m[1].y(), m[1].width(), m[1].height()), m[2]) for m in self._screen_maps ]}"
@@ -431,12 +444,10 @@ class ManualGuideOverlay(QWidget):
 
     def _guide_rect(self) -> QRect:
         s = self.scale
-        marker = self._physical_to_local(self.marker_x, self.marker_y)
-        left = marker.x() - int(round(GUIDE_REF_MARKER_LEFT_IN_WINDOW * s))
-        top = marker.y() - int(round(GUIDE_REF_MARKER_TOP_IN_WINDOW * s))
+        guide = self._physical_to_local(self.guide_x, self.guide_y)
         return QRect(
-            left,
-            top,
+            guide.x(),
+            guide.y(),
             int(round(GUIDE_REF_WINDOW_SIZE[0] * s)),
             int(round(GUIDE_REF_WINDOW_SIZE[1] * s)),
         )
@@ -453,7 +464,7 @@ class ManualGuideOverlay(QWidget):
     def _handle_rect(self) -> QRect:
         guide = self._guide_rect()
         size = max(14, int(round(18 * self.scale)))
-        return QRect(guide.right() - size + 1, guide.top(), size, size)
+        return QRect(guide.left(), guide.top(), size, size)
 
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
@@ -469,11 +480,13 @@ class ManualGuideOverlay(QWidget):
         painter.drawRect(guide)
         painter.drawRect(marker)
 
-        x0 = marker.left()
-        x1 = marker.right()
-        for row in range(GUIDE_MAX_ROWS + 1):
-            y = marker.top() + int(round((GUIDE_REF_FIRST_ROW_TOP_DY + row * GUIDE_REF_ROW_PITCH) * self.scale))
-            painter.drawLine(x0, y, x1, y)
+        s = self.scale
+        row_left = guide.left() + int(round(GUIDE_REF_SLOT_LEFT_IN_WINDOW * s))
+        row_width = int(round(GUIDE_REF_ROW_WIDTH * s))
+        row_height = int(round(GUIDE_REF_ROW_HEIGHT * s))
+        for row in range(GUIDE_MAX_ROWS):
+            row_top = guide.top() + int(round((GUIDE_REF_FIRST_ROW_TOP_IN_WINDOW + row * GUIDE_REF_ROW_PITCH) * s))
+            painter.drawRect(QRect(row_left, row_top, row_width, row_height))
 
         handle = self._handle_rect()
         handle_color = QColor(255, 255, 0, 255)
@@ -492,8 +505,8 @@ class ManualGuideOverlay(QWidget):
             current = event.globalPosition().toPoint()
             delta = current - self._last_global
             dpr = self._screen_dpr_at(current)
-            self.marker_x += delta.x() * dpr
-            self.marker_y += delta.y() * dpr
+            self.guide_x += delta.x() * dpr
+            self.guide_y += delta.y() * dpr
             self._last_global = current
             self.update()
             self.moved.emit()
@@ -812,17 +825,43 @@ class ControlWindow(QWidget):
             import win32gui
 
             needle = DEFAULT_WINDOW_TITLE.lower()
+            excluded_classes = (
+                "chrome_widgetwin",
+                "mozilla",
+                "applicationframewindow",
+                "ieframe",
+                "cascadia",
+            )
+            excluded_titles = (
+                "google chrome",
+                "microsoft edge",
+                "mozilla firefox",
+                "brave",
+                "opera",
+            )
             matches = []
 
             def enum_cb(hwnd, _):
                 if not win32gui.IsWindowVisible(hwnd):
                     return
+                if win32gui.IsIconic(hwnd):
+                    return
                 title = win32gui.GetWindowText(hwnd)
-                if needle not in title.lower():
+                title_l = title.lower()
+                if needle not in title_l:
+                    return
+                class_l = win32gui.GetClassName(hwnd).lower()
+                if any(name in class_l for name in excluded_classes):
+                    return
+                if any(name in title_l for name in excluded_titles):
                     return
                 left, top, right, bottom = win32gui.GetWindowRect(hwnd)
+                if left <= -30000 or top <= -30000:
+                    return
+                if right <= left or bottom <= top:
+                    return
                 area = max(0, right - left) * max(0, bottom - top)
-                if area > 0:
+                if area >= 100_000:
                     matches.append((area, left, top, right, bottom))
 
             win32gui.EnumWindows(enum_cb, None)
@@ -835,6 +874,12 @@ class ControlWindow(QWidget):
 
     def _initial_manual_marker(self) -> tuple[float, float, float]:
         scale = float(self.manual_party_apply.get("scale", 1.0))
+        if self.test_image_path:
+            return (
+                80.0 + GUIDE_REF_MARKER_LEFT_IN_WINDOW * scale,
+                80.0 + GUIDE_REF_MARKER_TOP_IN_WINDOW * scale,
+                scale,
+            )
         win_rect = self._find_game_window_rect()
         if win_rect is not None and "marker_x_rel" in self.manual_party_apply:
             left, top, _, _ = win_rect

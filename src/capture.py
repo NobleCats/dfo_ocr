@@ -25,6 +25,44 @@ def list_visible_windows() -> list[tuple[int, str]]:
     return windows
 
 
+def _is_invalid_capture_window(hwnd: int) -> bool:
+    import win32gui
+
+    try:
+        if not win32gui.IsWindowVisible(hwnd) or win32gui.IsIconic(hwnd):
+            return True
+        class_name = win32gui.GetClassName(hwnd).lower()
+        title = win32gui.GetWindowText(hwnd).lower()
+        excluded_classes = (
+            "chrome_widgetwin",
+            "mozilla",
+            "applicationframewindow",
+            "ieframe",
+            "cascadia",
+        )
+        excluded_titles = (
+            "google chrome",
+            "microsoft edge",
+            "mozilla firefox",
+            "brave",
+            "opera",
+        )
+        if any(name in class_name for name in excluded_classes):
+            return True
+        if any(name in title for name in excluded_titles):
+            return True
+        left, top, right, bottom = win32gui.GetWindowRect(hwnd)
+        if left <= -30000 or top <= -30000:
+            return True
+        if right <= left or bottom <= top:
+            return True
+        if (right - left) * (bottom - top) < 100_000:
+            return True
+    except Exception:
+        return True
+    return False
+
+
 def detect_y_doubling(frame: np.ndarray, sample_count: int = 32) -> int | None:
     """Return offset (0 or 1) where consecutive row pairs are bit-identical,
     or None if the frame is not Y-doubled.
@@ -198,7 +236,7 @@ class WindowCapture:
 
         needle = title_substring.lower()
         matches = [(hwnd, title) for hwnd, title in list_visible_windows()
-                   if needle in title.lower()]
+                   if needle in title.lower() and not _is_invalid_capture_window(hwnd)]
         if not matches:
             raise CaptureUnavailable(f"no visible window title contains {title_substring!r}")
         # Prefer the largest matching window.
