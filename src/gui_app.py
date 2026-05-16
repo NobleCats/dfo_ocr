@@ -1023,6 +1023,12 @@ class ControlWindow(QWidget):
 
     def _initial_manual_marker(self) -> tuple[float, float, float]:
         scale = float(self.manual_party_apply.get("scale", 1.0))
+        if "marker_x_abs" in self.manual_party_apply:
+            return (
+                float(self.manual_party_apply["marker_x_abs"]),
+                float(self.manual_party_apply["marker_y_abs"]),
+                scale,
+            )
         win_rect = self._find_game_window_rect()
         if win_rect is not None and "marker_x_rel" in self.manual_party_apply:
             left, top, _, _ = win_rect
@@ -1095,15 +1101,13 @@ class ControlWindow(QWidget):
         guide = self.guide_overlay
         if guide is None:
             return
-        win_rect = self._find_game_window_rect()
-        if win_rect is None:
-            left, top = 0, 0
-        else:
-            left, top, _, _ = win_rect
+        # Store the guide's absolute physical screen position so that
+        # recognition can subtract the actual capture origin at runtime,
+        # regardless of which window _find_game_window_rect returns.
         self.manual_party_apply = {
             "enabled": True,
-            "marker_x_rel": round(float(guide.marker_x - left), 2),
-            "marker_y_rel": round(float(guide.marker_y - top), 2),
+            "marker_x_abs": round(float(guide.marker_x), 2),
+            "marker_y_abs": round(float(guide.marker_y), 2),
             "scale": round(float(guide.scale), 4),
         }
         self._save_manual_party_apply()
@@ -1132,7 +1136,10 @@ class ControlWindow(QWidget):
             from app import LiveDemo
 
             manual_cfg = None
-            if self._manual_mode and self.manual_party_apply.get("marker_x_rel") is not None:
+            if self._manual_mode and (
+                self.manual_party_apply.get("marker_x_abs") is not None
+                or self.manual_party_apply.get("marker_x_rel") is not None
+            ):
                 manual_cfg = self.manual_party_apply
 
             self.demo = LiveDemo(

@@ -623,9 +623,21 @@ class LiveDemo:
         if not cfg or not cfg.get("enabled", True):
             return None
         try:
-            marker_x_rel = float(cfg["marker_x_rel"])
-            marker_y_rel = float(cfg["marker_y_rel"])
             scale = float(cfg.get("scale", 1.0))
+            if "marker_x_abs" in cfg:
+                # New format: absolute physical screen coords; subtract the
+                # actual capture source origin so the result is frame-relative.
+                origin_x, origin_y = getattr(self.capture, "origin_xy", (0, 0))
+                marker_x_rel = float(cfg["marker_x_abs"]) - origin_x
+                marker_y_rel = float(cfg["marker_y_abs"]) - origin_y
+                self._log.debug(
+                    "manual calibration abs=(%.0f,%.0f) origin=(%d,%d) → frame=(%.0f,%.0f)",
+                    float(cfg["marker_x_abs"]), float(cfg["marker_y_abs"]),
+                    origin_x, origin_y, marker_x_rel, marker_y_rel,
+                )
+            else:
+                marker_x_rel = float(cfg["marker_x_rel"])
+                marker_y_rel = float(cfg["marker_y_rel"])
         except Exception:
             self._log.warning("invalid manual party_apply calibration: %s", cfg)
             return None
