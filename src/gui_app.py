@@ -355,34 +355,32 @@ class ManualGuideOverlay(QWidget):
         physical_screens = self._physical_screens()
         maps: list[tuple[QRect, QRectF, float]] = []
         used: set[int] = set()
-        for idx, screen in enumerate(screens):
+        for screen in screens:
             logical = screen.geometry()
             dpr = max(float(screen.devicePixelRatio()), 1.0)
-            physical_idx = idx if idx < len(physical_screens) and idx not in used else None
-            if physical_idx is None:
-                expected_w = logical.width() * dpr
-                expected_h = logical.height() * dpr
-                best_idx = None
-                best_delta = float("inf")
-                for candidate_idx, physical in enumerate(physical_screens):
-                    if candidate_idx in used:
-                        continue
-                    delta = abs(physical.width() - expected_w) + abs(physical.height() - expected_h)
-                    if delta < best_delta:
-                        best_idx = candidate_idx
-                        best_delta = delta
-                if best_idx is not None and best_delta <= 4:
-                    physical_idx = best_idx
-            if physical_idx is not None and physical_idx < len(physical_screens):
-                used.add(physical_idx)
-                physical = physical_screens[physical_idx]
+            expected_x = logical.x() * dpr
+            expected_y = logical.y() * dpr
+            expected_w = logical.width() * dpr
+            expected_h = logical.height() * dpr
+            # Match by position+size, not index — Win32 and Qt may enumerate monitors in different order
+            best_idx = None
+            best_delta = float("inf")
+            for candidate_idx, physical in enumerate(physical_screens):
+                if candidate_idx in used:
+                    continue
+                size_delta = abs(physical.width() - expected_w) + abs(physical.height() - expected_h)
+                if size_delta > 8:
+                    continue
+                pos_delta = abs(physical.x() - expected_x) + abs(physical.y() - expected_y)
+                total_delta = size_delta + pos_delta
+                if total_delta < best_delta:
+                    best_idx = candidate_idx
+                    best_delta = total_delta
+            if best_idx is not None:
+                used.add(best_idx)
+                physical = physical_screens[best_idx]
             else:
-                physical = QRectF(
-                    logical.x() * dpr,
-                    logical.y() * dpr,
-                    logical.width() * dpr,
-                    logical.height() * dpr,
-                )
+                physical = QRectF(expected_x, expected_y, expected_w, expected_h)
             maps.append((logical, physical, dpr))
         return maps
 
