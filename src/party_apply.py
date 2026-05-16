@@ -316,6 +316,34 @@ def _row_mask_signature(image_rgb: np.ndarray, rects: list[tuple[int, int, int, 
     return b"|".join(parts)
 
 
+def _has_fame_star_icon(
+    image_rgb: np.ndarray,
+    x_left: int,
+    y_range: tuple[int, int],
+    scale: float,
+) -> bool:
+    """Detect the fame star icon in the leftmost portion of the fame column.
+
+    Pixel data from resources/fame.png (0% UI scale reference):
+      R: 117-255  G: 61-249  B: 0-3
+    The star is yellow-orange with essentially zero blue channel — a very
+    distinctive fingerprint that is stable regardless of the background.
+    """
+    H, W = image_rgb.shape[:2]
+    x0 = max(0, x_left)
+    x1 = min(W, x_left + max(6, int(round(FAME_STAR_ICON_RIGHT_PAD * scale))))
+    y0, y1 = max(0, y_range[0]), min(H, y_range[1])
+    if x1 - x0 < 4 or y1 - y0 < 4:
+        return False
+    crop = image_rgb[y0:y1, x0:x1]
+    r = crop[:, :, 0].astype(np.int16)
+    g = crop[:, :, 1].astype(np.int16)
+    b = crop[:, :, 2].astype(np.int16)
+    fame_star = (r > 120) & (g > 60) & (b < 15)
+    min_pixels = max(3, int(round(6 * max(0.4, scale) * max(0.4, scale))))
+    return int(fame_star.sum()) >= min_pixels
+
+
 def _has_pending_action_button(image_rgb: np.ndarray, x_range: tuple[int, int], y_range: tuple[int, int], scale: float) -> bool:
     """Cheap check for the Accept/Decline button area.
 
@@ -904,10 +932,14 @@ def recognize_party_apply(
         check_x1 = min(W, name_right_for_check)
         check_y1 = min(H, row_top + pitch)
 
-        # Manual mode: skip rows without enough brightness to contain applicant text.
-        # Logs show empty rows have max=36-40 while real rows have max=255.
+        # Manual mode: detect applicant presence via fame star icon or Accept/Decline buttons.
+        # Brightness is unreliable because the party-apply window is translucent.
         if det.is_manual and check_x1 - check_x0 >= 10 and check_y1 - row_top >= 5:
-            if int(image_rgb[row_top:check_y1, check_x0:check_x1].max()) < 50:
+            has_applicant = (
+                _has_fame_star_icon(image_rgb, fame_left_for_check, (row_top, check_y1), s)
+                or _has_pending_action_button(image_rgb, status_x, (row_top, check_y1), s)
+            )
+            if not has_applicant:
                 empties_since_real += 1
                 if empties_since_real >= 3:
                     break
