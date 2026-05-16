@@ -622,11 +622,16 @@ class LiveDemo:
         cfg = self.manual_party_apply
         if not cfg or not cfg.get("enabled", True):
             return None
+        # Test-image captures have no screen anchor: guide screen coords have no
+        # relationship to image pixel coords. Return None so auto detection runs
+        # and finds the correct pixel-space position from the image content.
+        if isinstance(self.capture, ImageCapture):
+            return None
         try:
             scale = float(cfg.get("scale", 1.0))
             if "marker_x_abs" in cfg:
-                # New format: absolute physical screen coords; subtract the
-                # actual capture source origin so the result is frame-relative.
+                # Absolute physical screen coords; subtract the actual capture
+                # source origin to get frame-relative coordinates.
                 origin_x, origin_y = getattr(self.capture, "origin_xy", (0, 0))
                 marker_x_rel = float(cfg["marker_x_abs"]) - origin_x
                 marker_y_rel = float(cfg["marker_y_abs"]) - origin_y
