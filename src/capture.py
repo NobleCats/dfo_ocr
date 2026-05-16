@@ -1,6 +1,7 @@
 """Screen/window capture helpers."""
 import numpy as np
 import mss
+from PIL import Image
 
 
 class CaptureUnavailable(RuntimeError):
@@ -143,6 +144,39 @@ class ScreenCapture:
 
     def __exit__(self, *_):
         self.close()
+
+
+class ImageCapture:
+    """Feeds a fixed screenshot through the normal capture pipeline."""
+
+    def __init__(self, image_path: str):
+        self.image_path = image_path
+        self.origin_xy = (0, 0)
+        try:
+            self._frame = np.array(Image.open(image_path).convert("RGB"))
+        except Exception as exc:
+            raise CaptureUnavailable(f"unable to load screenshot: {image_path}") from exc
+
+    def grab(self) -> np.ndarray:
+        return self._frame.copy()
+
+    @property
+    def monitor_count(self) -> int:
+        return 1
+
+    @property
+    def monitor_index(self) -> int:
+        return 1
+
+    def set_monitor(self, monitor_index: int) -> None:
+        if monitor_index != 1:
+            raise ValueError("ImageCapture does not support monitor switching")
+
+    def grab_monitor(self, monitor_index: int) -> np.ndarray:
+        return self.grab()
+
+    def close(self):
+        pass
 
 
 class WindowCapture:

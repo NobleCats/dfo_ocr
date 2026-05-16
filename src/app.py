@@ -22,17 +22,12 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from concurrent.futures import Future, ThreadPoolExecutor
 
-from capture import CaptureUnavailable, ScreenCapture, WindowCapture, list_visible_windows  # noqa: E402
-from detect import WindowDetection, detect_raid_window_with_y_candidates  # noqa: E402
+from capture import CaptureUnavailable, ImageCapture, ScreenCapture, WindowCapture, list_visible_windows  # noqa: E402
 from overlay import OverlayWindow            # noqa: E402
-from recognize import (RecognizedRow, load_default_templates, recognize_raid_fames,
-                       recognize_raid_party, RowCache,
-                       ui_scale_setting_to_factor)  # noqa: E402
 from dfogang import DfogangClient, ScoreInfo  # noqa: E402
 from neople import NeopleClient, name_similarity  # noqa: E402
 from party_apply import (PartyApplyDetection, PartyApplyRow,
-                         TEMPLATE_SCALE_FOR_PARTY_APPLY,
-                         TEMPLATE_SCALE_FOR_PARTY_APPLY_DIGITS,
+                         build_manual_party_apply_detection,
                          detect_party_apply, recognize_party_apply)  # noqa: E402
 import general_ocr  # noqa: E402
 from qt_dpi import configure_qt_high_dpi  # noqa: E402
@@ -59,12 +54,13 @@ SCORE_Y_OFFSET = -8
 # up in-flight cold scans that delay recovery when the window reopens — but
 # keep the interval short enough that recovery feels responsive after the
 # user drags the window past the hint search radius.
-COLD_SCAN_MIN_INTERVAL_S = 0.3
+COLD_SCAN_MIN_INTERVAL_S = 0.0
 
 # How long a "pending" score lookup is allowed to remain unanswered before we
 # treat it as stuck and let a fresh attempt go out. Larger than the dfogang
 # client's own in-flight timeout to avoid double-scheduling under normal load.
 PENDING_TTL_S = 15.0
+LOCAL_CACHE_TTL_S = 180.0
 
 # Minimum class-OCR confidence to bother hitting the Neople API. Below this,
 # the OCR output is so garbled that match_jobs lands on the wrong class
@@ -192,9 +188,10 @@ class LiveDemo:
     def __init__(self, capture_interval_ms: int = 200, demo_scores: bool = True,
                  monitor_index: int | None = None, ui_scale: float = 1.0,
                  window_title: str | None = None,
-                 templates: dict | None = None,
                  neople_api_key: str = "",
                  mode: str = "party_apply",
+                 manual_party_apply: dict | None = None,
+                 test_image_path: str | None = None,
                  unavailable_callback=None,
                  waiting_callback=None,
                  recovered_callback=None,
@@ -207,17 +204,17 @@ class LiveDemo:
         self.monitor_index = monitor_index
         self.ui_scale = ui_scale
         self.mode = mode
-        if mode not in ("party_apply", "raid_party"):
+        self.manual_party_apply = manual_party_apply or None
+        self.test_image_path = test_image_path
+        if mode != "party_apply":
             raise ValueError(f"unknown mode {mode!r}")
-        self._template_cache: dict[float, dict] = {}
-        self.templates = templates
-        self._active_template_scale: float | None = ui_scale if templates is not None else None
         self.unavailable_callback = unavailable_callback
         self.waiting_callback = waiting_callback
         self.recovered_callback = recovered_callback
         self.ready_callback = ready_callback
         self.capture_interval_ms = capture_interval_ms
         self.timer = QTimer()
+        self.timer.setSingleShot(True)
         self.timer.timeout.connect(self.tick)
         self._frame_emitter = _FrameEmitter()
         self._frame_emitter.processed.connect(self._apply_frame_result)
@@ -258,11 +255,9 @@ class LiveDemo:
 
         self.dfogang = DfogangClient(demo=demo_scores, neople_api_key=neople_api_key)
         self.neople = NeopleClient(api_key=neople_api_key)
-        # max_workers=2 caps concurrent outbound calls. Going higher only
-        # helps when the network is fast AND the backend isn't rate-limiting,
-        # and risks burst-flooding the API on transient stalls.
-        self._score_executor = ThreadPoolExecutor(max_workers=2)
-        self._score_cache: dict[str, ScoreInfo | None] = {}
+        self._resolve_executor = ThreadPoolExecutor(max_workers=1)
+        self._score_executor = ThreadPoolExecutor(max_workers=1)
+        self._score_cache: dict[str, tuple[ScoreInfo | None, float]] = {}
         # name -> started_at. Entries expire after PENDING_TTL_S so a stuck
         # worker thread can't permanently block a retry.
         self._score_pending: dict[str, float] = {}
@@ -271,13 +266,12 @@ class LiveDemo:
 
         # party_apply: OCR row -> resolved canonical name (or None).
         # Key is a tuple of OCR signals, deterministic for the same UI state.
-        self._pa_resolve_cache: dict[tuple, str | None] = {}
+        self._pa_resolve_cache: dict[tuple, tuple[str | None, float]] = {}
         self._pa_resolve_pending: dict[tuple, float] = {}
-        # party_apply: stable row -> resolved canonical name. This key
-        # deliberately excludes OCR'd name text, because name OCR is the
-        # noisiest signal and can jitter between frames after a successful
-        # resolve.
-        self._pa_stable_resolve_cache: dict[tuple, str | None] = {}
+        # party_apply resolve cache intentionally includes OCR name. Reusing a
+        # fame+class-only hit can leave a previous applicant's score on screen
+        # after rows are accepted or replaced.
+        self._pa_stable_resolve_cache: dict[tuple, tuple[str | None, float]] = {}
 
         # API result cache, keyed on (fame, class_norm, name_norm):
         #   _pa_resolve_cache[key] = canonical_name (str) or None
@@ -286,7 +280,7 @@ class LiveDemo:
         #   _pa_candidate_pending  = keys with API call in flight
         # Failures are NOT logged; the next capture tick will retry
         # (the OCR result might land slightly differently and succeed).
-        self._pa_candidate_logged: set[tuple] = set()
+        self._pa_candidate_logged: dict[tuple, float] = {}
         self._pa_candidate_pending: set[tuple] = set()
         self._last_detection = None
         self._last_hint = None
@@ -294,7 +288,6 @@ class LiveDemo:
         # (3x speedup) and survives detection loss across raid-window close.
         self._last_y_factor: float | None = None
         self._last_cold_scan_t: float = 0.0
-        self._row_cache = RowCache()
         self._batch_future: Future | None = None
         self._closed = False
         self._waiting_for_window = False
@@ -302,28 +295,58 @@ class LiveDemo:
         self._last_found = False
         self._last_state_change_t = time.perf_counter()
         self._log.info("LiveDemo init  ui_scale=%.3f  interval=%dms  "
-                       "monitor=%s  window_title=%r  log_dir=%s",
+                       "monitor=%s  window_title=%r  test_image=%r  log_dir=%s",
                        ui_scale, capture_interval_ms, monitor_index,
-                       window_title, _log_dir())
-
-    def _get_templates_for_scale(self, scale: float) -> tuple[float, dict]:
-        key = round(float(scale), 2)
-        if key not in self._template_cache:
-            self._log.info("loading templates for detected scale %.3f (key %.2f)", scale, key)
-            self._template_cache[key] = load_default_templates(ui_scale=key)
-        if self._active_template_scale != key:
-            self._row_cache = RowCache()
-            self._active_template_scale = key
-        return key, self._template_cache[key]
+                       window_title, test_image_path, _log_dir())
 
     def _is_pending_stale(self, started_at: float) -> bool:
         return (time.perf_counter() - started_at) > PENDING_TTL_S
 
+    def _cache_fresh(self, fetched_at: float) -> bool:
+        return (time.perf_counter() - fetched_at) <= LOCAL_CACHE_TTL_S
+
+    def _cached_score(self, name: str):
+        entry = self._score_cache.get(name)
+        if entry is None:
+            return _PENDING
+        info, fetched_at = entry
+        if self._cache_fresh(fetched_at):
+            return info
+        self._score_cache.pop(name, None)
+        return _PENDING
+
+    def _cached_resolve(self, cache: dict[tuple, tuple[str | None, float]], key: tuple):
+        entry = cache.get(key)
+        if entry is None:
+            return _PENDING
+        canonical, fetched_at = entry
+        if self._cache_fresh(fetched_at):
+            return canonical
+        cache.pop(key, None)
+        return _PENDING
+
+    def _set_resolve_cache(self, cache: dict[tuple, tuple[str | None, float]],
+                           key: tuple, canonical: str | None) -> None:
+        cache[key] = (canonical, time.perf_counter())
+
+    def _candidate_logged_recent(self, key: tuple) -> bool:
+        fetched_at = self._pa_candidate_logged.get(key)
+        if fetched_at is None:
+            return False
+        if self._cache_fresh(fetched_at):
+            return True
+        self._pa_candidate_logged.pop(key, None)
+        return False
+
+    def _mark_candidate_logged(self, key: tuple) -> None:
+        self._pa_candidate_logged[key] = time.perf_counter()
+
     def get_info(self, name: str):
         """Non-blocking info lookup: cached ScoreInfo (or None), or `_PENDING`
         if a fetch is in flight."""
-        if name in self._score_cache:
-            return self._score_cache[name]
+        cached = self._cached_score(name)
+        if cached is not _PENDING:
+            return cached
         started_at = self._score_pending.get(name)
         if started_at is None or self._is_pending_stale(started_at):
             if started_at is not None:
@@ -337,7 +360,7 @@ class LiveDemo:
         missing = []
         now = time.perf_counter()
         for name in names:
-            if not name or name in self._score_cache:
+            if not name or self._cached_score(name) is not _PENDING:
                 continue
             started_at = self._score_pending.get(name)
             if started_at is not None and not self._is_pending_stale(started_at):
@@ -355,10 +378,10 @@ class LiveDemo:
             _safe_print(f"[score] batch fetch error: {e}")
             results = {name: None for name in names}
         for name in names:
-            self._score_cache[name] = results.get(name)
+            self._score_cache[name] = (results.get(name), time.perf_counter())
             self._score_pending.pop(name, None)
 
-    def _schedule_fame_resolves(self, rows: list[RecognizedRow], fames: dict) -> None:
+    def _schedule_fame_resolves(self, rows: list, fames: dict) -> None:
         now = time.perf_counter()
         for row in rows:
             fame_result = fames.get(row.y_abs)
@@ -372,7 +395,7 @@ class LiveDemo:
             if started_at is not None and not self._is_pending_stale(started_at):
                 continue
             self._fame_resolve_pending[key] = now
-            self._score_executor.submit(self._fetch_fame_resolve, row.name, fame)
+            self._resolve_executor.submit(self._fetch_fame_resolve, row.name, fame)
 
     def _fetch_fame_resolve(self, name: str, fame: int) -> None:
         key = (name, fame)
@@ -402,7 +425,7 @@ class LiveDemo:
             self._log.info("dfogang  %r → score=%s buffer=%s fame=%s",
                            info.name or name, info.score, info.is_buffer,
                            info.fame)
-        self._score_cache[name] = info
+        self._score_cache[name] = (info, time.perf_counter())
         self._score_pending.pop(name, None)
         self._safe_emit(self._frame_emitter.refresh_overlay)
 
@@ -427,6 +450,11 @@ class LiveDemo:
         self._frame_in_flight = True
         self._frame_executor.submit(self._process_frame)
 
+    def _schedule_next_frame(self, delay_ms: int = 0) -> None:
+        if self._closed:
+            return
+        self.timer.start(max(0, int(delay_ms)))
+
     def _safe_emit(self, signal, *args):
         """Emit a signal, swallowing the 'wrapped C/C++ object has been
         deleted' error that can occur if LiveDemo was shut down while a
@@ -444,7 +472,10 @@ class LiveDemo:
         t0 = time.perf_counter()
         try:
             if self.capture is None:
-                self.capture = WindowCapture(self.window_title) if self.window_title else ScreenCapture()
+                if self.test_image_path:
+                    self.capture = ImageCapture(self.test_image_path)
+                else:
+                    self.capture = WindowCapture(self.window_title) if self.window_title else ScreenCapture()
                 if self.monitor_index is not None and not self.window_title:
                     self.capture.set_monitor(self.monitor_index)
             t_cap0 = time.perf_counter()
@@ -454,65 +485,7 @@ class LiveDemo:
                 return
             if self.mode == "party_apply":
                 return self._process_frame_party_apply(t0, cap_ms, frame)
-            cold = self._last_hint is None
-            if cold and (t0 - self._last_cold_scan_t) < COLD_SCAN_MIN_INTERVAL_S:
-                # Skip detection: a cold scan ran very recently. Returning an
-                # empty result keeps the overlay clean without burning CPU on
-                # back-to-back full scans while the raid window is closed.
-                empty_det = WindowDetection(
-                    False, 0.0, 1.0, (0, 0, 0, 0), (0, 0, 0, 0), (0, 0))
-                setattr(empty_det, "y_factor", self._last_y_factor or 1.0)
-                self._log.debug(
-                    "frame skip(throttle)  cap=%.0fms  since_last_cold=%.2fs  "
-                    "frame=%dx%d", cap_ms, t0 - self._last_cold_scan_t,
-                    frame.shape[1], frame.shape[0])
-                self._safe_emit(self._frame_emitter.processed, {
-                    "det": empty_det,
-                    "rows": [],
-                    "origin_xy": getattr(self.capture, "origin_xy", (0, 0)),
-                    "elapsed_ms": (time.perf_counter() - t0) * 1000,
-                    "cap_ms": cap_ms,
-                    "det_ms": 0.0,
-                    "skipped": True,
-                    "cold": True,
-                })
-                return
-            if cold:
-                self._last_cold_scan_t = t0
-            t_det0 = time.perf_counter()
-            det, y_factor = detect_raid_window_with_y_candidates(
-                frame,
-                hint=self._last_hint,
-                y_factor_filter=self._last_y_factor if cold else None,
-                near_scale=self._active_template_scale,
-            )
-            setattr(det, "y_factor", y_factor)
-            if det.found:
-                template_scale, templates = self._get_templates_for_scale(det.scale)
-                s = det.scale
-                if y_factor != 1.0:
-                    x, y, w, h = det.name_col_xywh
-                    name_col = (x, int(round(y * y_factor)), w, int(round(h * y_factor)))
-                    rows = recognize_raid_party(
-                        frame, templates,
-                        name_col_xywh=name_col,
-                        scale=s,
-                        y_scale=s * y_factor,
-                        row_cache=self._row_cache,
-                    )
-                else:
-                    rows = recognize_raid_party(
-                        frame, templates,
-                        name_col_xywh=det.name_col_xywh,
-                        scale=s,
-                        row_cache=self._row_cache,
-                    )
-                fames = recognize_raid_fames(frame, det, rows, templates)
-            else:
-                template_scale = self._active_template_scale
-                rows = []
-                fames = {}
-            det_ms = (time.perf_counter() - t_det0) * 1000
+            raise RuntimeError(f"unsupported mode {self.mode!r}")
         except CaptureUnavailable as e:
             self._log.warning("capture unavailable: %s", e)
             close = getattr(self.capture, "close", None)
@@ -525,39 +498,16 @@ class LiveDemo:
             self._log.exception("frame processing failed")
             self._safe_emit(self._frame_emitter.failed, str(e))
             return
-        if self._closed:
-            return
-        elapsed_ms = (time.perf_counter() - t0) * 1000
-        self._log.debug(
-            "frame %s%s  cap=%.0f  det=%.0f  total=%.0fms  "
-            "found=%s  score=%.2f  scale=%.2f  yf=%s  rows=%d  frame=%dx%d",
-            "COLD" if cold else "hot ",
-            "" if cold else (" (hint)"),
-            cap_ms, det_ms, elapsed_ms,
-            det.found, det.score, det.scale,
-            getattr(det, "y_factor", 1.0), len(rows),
-            frame.shape[1], frame.shape[0])
-        self._safe_emit(self._frame_emitter.processed, {
-            "det": det,
-            "rows": rows,
-            "fames": fames,
-            "origin_xy": getattr(self.capture, "origin_xy", (0, 0)),
-            "elapsed_ms": elapsed_ms,
-            "cap_ms": cap_ms,
-            "det_ms": det_ms,
-            "template_scale": template_scale,
-            "skipped": False,
-            "cold": cold,
-        })
 
     def _process_frame_party_apply(self, t0: float, cap_ms: float, frame: np.ndarray):
         self._last_frame = frame
         try:
+            manual_det = self._manual_party_apply_detection(frame)
             had_hint = self._last_party_apply_hint is not None
             cold = not had_hint
             # Cold scan (no hint) is ~1.5-2s on 2K captures. Throttle it so
             # we don't burn CPU while the window is closed.
-            if cold and (t0 - self._last_pa_cold_scan_t) < COLD_SCAN_MIN_INTERVAL_S:
+            if manual_det is None and cold and (t0 - self._last_pa_cold_scan_t) < COLD_SCAN_MIN_INTERVAL_S:
                 self._safe_emit(self._frame_emitter.processed, {
                     "mode": "party_apply",
                     "det": PartyApplyDetection(False, 0.0, 1.0, (0, 0, 0, 0), []),
@@ -566,11 +516,11 @@ class LiveDemo:
                     "elapsed_ms": (time.perf_counter() - t0) * 1000,
                     "cap_ms": cap_ms,
                     "det_ms": 0.0,
-                    "template_scale": self._active_template_scale,
                     "skipped": True,
+                    "next_delay_ms": int(COLD_SCAN_MIN_INTERVAL_S * 1000),
                 })
                 return
-            if cold:
+            if manual_det is None and cold:
                 self._last_pa_cold_scan_t = t0
             t_det0 = time.perf_counter()
             prev_hint_xy = (self._last_party_apply_hint.marker_xywh
@@ -585,30 +535,34 @@ class LiveDemo:
             # to the near_scale path instead of the slow full coarse+fine
             # sweep. Without this, the lost-transition frame pays a 4.5s
             # full-scan cost on a 2K capture.
-            scale_known = (self._last_pa_scale is not None
-                           and self._pa_narrow_misses < 2)
-            near = self._last_pa_scale if scale_known else None
-            det = detect_party_apply(frame, hint=self._last_party_apply_hint,
-                                     near_scale=near)
+            if manual_det is not None:
+                scale_known = True
+                det = manual_det
+            else:
+                scale_known = (self._last_pa_scale is not None
+                               and self._pa_narrow_misses < 2)
+                near = self._last_pa_scale if scale_known else None
+                det = detect_party_apply(frame, hint=self._last_party_apply_hint,
+                                         near_scale=near)
             det_ms = (time.perf_counter() - t_det0) * 1000
             if det.found:
                 self._last_pa_scale = det.scale
                 self._pa_narrow_misses = 0
-            elif cold and scale_known:
+            elif manual_det is None and cold and scale_known:
                 self._pa_narrow_misses += 1
-            elif cold and not scale_known:
+            elif manual_det is None and cold and not scale_known:
                 # Full sweep ran (no cached scale yet). Keep counter at 0
                 # so the next find populates `_last_pa_scale` cleanly.
                 self._pa_narrow_misses = 0
             # Log when the marker jumped — diagnostic for window drags.
-            if had_hint and det.found and prev_hint_xy is not None:
+            if manual_det is None and had_hint and det.found and prev_hint_xy is not None:
                 dx = det.marker_xywh[0] - prev_hint_xy[0]
                 dy = det.marker_xywh[1] - prev_hint_xy[1]
                 if abs(dx) > 4 or abs(dy) > 4:
                     self._log.info(
                         "marker moved  Δ=(%+d,%+d)  scan=%dms",
                         dx, dy, int(det_ms))
-            elif had_hint and not det.found:
+            elif manual_det is None and had_hint and not det.found:
                 self._log.info("hint lost — falling back to cold scan next frame")
             self._last_frame_meta = {
                 "found": det.found, "score": det.score, "scale": det.scale,
@@ -618,20 +572,10 @@ class LiveDemo:
             }
             recog_ms = 0.0
             if det.found:
-                # det.scale is the actual marker size relative to the 69%-UI
-                # reference. Templates need to be scaled to match the visible
-                # font at that detected scale.
-                alpha_scale = TEMPLATE_SCALE_FOR_PARTY_APPLY * det.scale
-                digit_scale = TEMPLATE_SCALE_FOR_PARTY_APPLY_DIGITS * det.scale
-                template_scale, templates = self._get_templates_for_scale(alpha_scale)
-                _, digit_lib = self._get_templates_for_scale(digit_scale)
-                digit_templates = {ch: v for ch, v in digit_lib.items()
-                                   if ch.isdigit() or ch == ","}
                 t_recog0 = time.perf_counter()
-                rows = recognize_party_apply(frame, det, templates, digit_templates)
+                rows = recognize_party_apply(frame, det)
                 recog_ms = (time.perf_counter() - t_recog0) * 1000
             else:
-                template_scale = self._active_template_scale
                 rows = []
         except CaptureUnavailable as e:
             self._log.warning("capture unavailable: %s", e)
@@ -655,7 +599,7 @@ class LiveDemo:
         if det.found and rows:
             for r in rows:
                 fame_str = f"{r.fame:>6}" if r.fame is not None else "  ----"
-                self._log.info(
+                self._log.debug(
                     "row %d  fame=%s (raw=%r conf=%.2f)  class=%r (raw=%r conf=%.2f)",
                     r.index, fame_str, r.fame_text, r.fame_score,
                     r.class_name, r.class_raw, r.class_score)
@@ -672,8 +616,25 @@ class LiveDemo:
             "elapsed_ms": elapsed_ms,
             "cap_ms": cap_ms,
             "det_ms": det_ms,
-            "template_scale": template_scale,
         })
+
+    def _manual_party_apply_detection(self, frame: np.ndarray) -> PartyApplyDetection | None:
+        cfg = self.manual_party_apply
+        if not cfg or not cfg.get("enabled", True):
+            return None
+        try:
+            marker_x_rel = float(cfg["marker_x_rel"])
+            marker_y_rel = float(cfg["marker_y_rel"])
+            scale = float(cfg.get("scale", 1.0))
+        except Exception:
+            self._log.warning("invalid manual party_apply calibration: %s", cfg)
+            return None
+        det = build_manual_party_apply_detection(
+            (int(round(marker_x_rel)), int(round(marker_y_rel))),
+            scale,
+            frame.shape,
+        )
+        return det if det.rows_top_y else None
 
     def _apply_frame_result(self, result: dict):
         self._frame_in_flight = False
@@ -688,7 +649,10 @@ class LiveDemo:
             if self.ready_callback is not None:
                 self.ready_callback()
         if result.get("mode") == "party_apply":
-            return self._apply_party_apply_result(result)
+            self._apply_party_apply_result(result)
+            if not self.test_image_path:
+                self._schedule_next_frame(result.get("next_delay_ms", 0))
+            return
         det = result["det"]
         rows = result["rows"]
         fames = result.get("fames", {})
@@ -733,6 +697,7 @@ class LiveDemo:
         if self._frame_count % 5 == 0 or self._frame_count <= 3:
             _safe_print(f"[tick {self._frame_count}] {elapsed_ms:.0f}ms  "
                         f"scale={det.scale:.2f}  {len(names)} names: {names}")
+        self._schedule_next_frame(result.get("next_delay_ms", 0))
 
     def _apply_party_apply_result(self, result: dict) -> None:
         det: PartyApplyDetection = result["det"]
@@ -764,19 +729,22 @@ class LiveDemo:
             if row_key is None:
                 continue
             stable_key = self._pa_stable_row_key(row)
-            if stable_key is not None and stable_key in self._pa_stable_resolve_cache:
-                canonical = self._pa_stable_resolve_cache[stable_key]
-                self._pa_resolve_cache[row_key] = canonical
+            if stable_key is not None:
+                canonical = self._cached_resolve(self._pa_stable_resolve_cache, stable_key)
+            else:
+                canonical = _PENDING
+            if canonical is not _PENDING:
+                self._set_resolve_cache(self._pa_resolve_cache, row_key, canonical)
                 if canonical:
-                    self._pa_candidate_logged.add(row_key)
+                    self._mark_candidate_logged(row_key)
                 continue
             if row_key in self._pa_candidate_pending:
                 continue
-            if row_key in self._pa_candidate_logged:
+            if self._candidate_logged_recent(row_key):
                 continue  # success already cached
             ocr_name = (row.name or row.name_raw or "").strip()
             self._pa_candidate_pending.add(row_key)
-            self._score_executor.submit(
+            self._resolve_executor.submit(
                 self._fetch_pa_candidates,
                 row.fame, row.class_raw, ocr_name, row_key, stable_key,
                 row.fame_range_min, row.fame_range_max)
@@ -819,8 +787,9 @@ class LiveDemo:
             return None
         if row.class_score < PARTY_APPLY_MIN_CLASS_CONF:
             return None
+        ocr_name = (row.name or row.name_raw or "").strip()
         return (row.fame, row.fame_range_min, row.fame_range_max,
-                _norm_for_cache(row.class_raw))
+                _norm_for_cache(row.class_raw), _norm_for_cache(ocr_name))
 
     def _build_pa_annotations(self, det: PartyApplyDetection,
                               rows: list[PartyApplyRow],
@@ -865,13 +834,16 @@ class LiveDemo:
             return self._pa_overlay_dict(det, row, origin_xy,
                                          f"{ocr_display}  ?", COLOR_NEUTRAL)
         stable_key = self._pa_stable_row_key(row)
-        if stable_key is not None and stable_key in self._pa_stable_resolve_cache:
-            canonical = self._pa_stable_resolve_cache[stable_key]
-            self._pa_resolve_cache[row_key] = canonical
-            if canonical:
-                self._pa_candidate_logged.add(row_key)
+        if stable_key is not None:
+            canonical = self._cached_resolve(self._pa_stable_resolve_cache, stable_key)
         else:
-            canonical = self._pa_resolve_cache.get(row_key, _PENDING)
+            canonical = _PENDING
+        if canonical is not _PENDING:
+            self._set_resolve_cache(self._pa_resolve_cache, row_key, canonical)
+            if canonical:
+                self._mark_candidate_logged(row_key)
+        else:
+            canonical = self._cached_resolve(self._pa_resolve_cache, row_key)
         if canonical is _PENDING:
             text, color = f"{ocr_display}  …", COLOR_NEUTRAL
         elif not canonical:
@@ -879,7 +851,7 @@ class LiveDemo:
             # user knows the row is being processed but couldn't resolve.
             text, color = f"{ocr_display}  ?", COLOR_NEUTRAL
         else:
-            info = self._score_cache.get(canonical, _PENDING)
+            info = self._cached_score(canonical)
             if info is _PENDING:
                 self.get_info(canonical)  # kick lookup if not yet started
                 text = f"{canonical}  …"
@@ -921,7 +893,6 @@ class LiveDemo:
             self._log.warning("Neople resolve failed for fame=%s class=%r: %s",
                               fame_display, ocr_class, exc)
             self._pa_candidate_pending.discard(key)
-            self._pa_resolve_cache[key] = None
             self._safe_emit(self._frame_emitter.refresh_overlay)
             return
         if job is None:
@@ -944,11 +915,11 @@ class LiveDemo:
                     c.name, c.fame, c.server_id, c.job_grow_name, sim)
             canonical = top.name
         self._pa_candidate_pending.discard(key)
-        self._pa_resolve_cache[key] = canonical
+        self._set_resolve_cache(self._pa_resolve_cache, key, canonical)
         if canonical:
-            self._pa_candidate_logged.add(key)  # success → never re-attempt
+            self._mark_candidate_logged(key)
             if stable_key is not None:
-                self._pa_stable_resolve_cache[stable_key] = canonical
+                self._set_resolve_cache(self._pa_stable_resolve_cache, stable_key, canonical)
             self._log.info("commit canonical=%r → dfogang", canonical)
             # Kick off dfogang lookup right now; signal will refresh overlay.
             self.get_info(canonical)
@@ -957,21 +928,8 @@ class LiveDemo:
         # differently and find a hit.
         self._safe_emit(self._frame_emitter.refresh_overlay)
 
-    def _resolve_rows_by_fame(self, rows: list[RecognizedRow], fames: dict) -> list[RecognizedRow]:
-        resolved: list[RecognizedRow] = []
-        for row in rows:
-            fame_result = fames.get(row.y_abs)
-            fame = getattr(fame_result, "fame", None)
-            canonical = self._fame_resolve_cache.get((row.name, fame)) if fame is not None else None
-            if canonical and canonical != row.name:
-                resolved.append(RecognizedRow(
-                    y_abs=row.y_abs,
-                    name=canonical,
-                    char_matches=row.char_matches,
-                ))
-            else:
-                resolved.append(row)
-        return resolved
+    def _resolve_rows_by_fame(self, rows: list, fames: dict) -> list:
+        return rows
 
     def _handle_capture_unavailable(self):
         self._frame_in_flight = False
@@ -980,12 +938,12 @@ class LiveDemo:
         self.overlay.set_annotations([])
         self._last_detection = None
         self._last_hint = None
-        self._row_cache = RowCache()
         if self.window_title:
             if not self._waiting_for_window:
                 self._waiting_for_window = True
                 if self.waiting_callback is not None:
                     self.waiting_callback()
+            self._schedule_next_frame(self.capture_interval_ms)
             return
         self.timer.stop()
         if self.unavailable_callback is not None:
@@ -998,8 +956,8 @@ class LiveDemo:
         self.overlay.set_annotations([])
         self._last_detection = None
         self._last_hint = None
-        self._row_cache = RowCache()
         _safe_print(f"[tick] error: {message}")
+        self._schedule_next_frame(self.capture_interval_ms)
 
     def run(self):
         self.start()
@@ -1014,7 +972,7 @@ class LiveDemo:
         # first detected frame doesn't pay that latency mid-capture.
         if self.mode == "party_apply":
             general_ocr.prewarm_in_background()
-        self.timer.start(self.capture_interval_ms)
+        self._schedule_next_frame(0)
 
     def stop(self):
         self.timer.stop()
@@ -1035,32 +993,38 @@ class LiveDemo:
                 # mss is thread-local; closing from a different thread than
                 # grab() raises AttributeError. Harmless on shutdown.
                 self._log.debug("capture close (ignored): %s", e)
-        # wait=False so a stuck cold scan doesn't freeze the UI; the worker
-        # checks self._closed before emitting and _safe_emit swallows any
-        # late RuntimeError from a destroyed Qt object.
-        self._frame_executor.shutdown(wait=False)
+        # Wait for the frame worker so a stopped LiveDemo cannot overlap a new
+        # one against the shared PaddleOCR predictor. This matters most in the
+        # bundled EXE, where stop/start timing is slower and overlapping OCR
+        # calls can corrupt recognition for the next session.
+        self._frame_executor.shutdown(wait=True, cancel_futures=True)
+        self._resolve_executor.shutdown(wait=False)
         self._score_executor.shutdown(wait=False)
 
 
 if __name__ == "__main__":
     import argparse
+    from PIL import Image
+
     parser = argparse.ArgumentParser(description="DFO raid party overlay")
     parser.add_argument("--monitor", type=int, default=None,
                         help="1-based monitor index (omit to auto-detect)")
     parser.add_argument("--window-title", default=None,
                         help="capture a window whose title contains this text")
+    parser.add_argument("--test-image", default=None,
+                        help="run one-shot party_apply detection/OCR against a screenshot and exit")
     parser.add_argument("--list-windows", action="store_true",
                         help="print visible window titles and exit")
     parser.add_argument("--real", action="store_true",
                         help="hit the real dfogang backend (default = demo scores)")
-    parser.add_argument("--interval", type=int, default=200,
-                        help="capture interval in ms (default 200 = 5fps)")
-    parser.add_argument("--ui-scale", type=float, required=True,
+    parser.add_argument("--interval", type=int, default=0,
+                        help="restart interval in ms when capture target is unavailable (default 0)")
+    parser.add_argument("--ui-scale", type=float, default=69.0,
                         help="DFO UI Scale setting percent, e.g. 100, 50, 0")
     parser.add_argument("--neople-api-key", default=os.environ.get("DFONEOPLE_API_KEY", ""),
                         help="Neople API key for fame-based name correction")
     parser.add_argument("--mode", default="party_apply",
-                        choices=["party_apply", "raid_party"],
+                        choices=["party_apply"],
                         help="UI to track. Default: party_apply.")
     args = parser.parse_args()
     if args.list_windows:
@@ -1069,13 +1033,27 @@ if __name__ == "__main__":
             print(line.encode(sys.stdout.encoding or "utf-8",
                               errors="backslashreplace").decode(sys.stdout.encoding or "utf-8"))
         raise SystemExit(0)
-    ui_scale = ui_scale_setting_to_factor(args.ui_scale)
+    if args.test_image:
+        img = np.array(Image.open(args.test_image).convert("RGB"))
+        det = detect_party_apply(img)
+        print(
+            f"[test-image] found={det.found} score={det.score:.3f} "
+            f"scale={det.scale:.3f} marker={det.marker_xywh} rows={len(det.rows_top_y)}"
+        )
+        rows = recognize_party_apply(img, det) if det.found else []
+        for row in rows:
+            print(
+                f"row={row.index} fame={row.fame} fame_raw={row.fame_text!r} "
+                f"class={row.class_raw!r} name={row.name_raw!r}"
+            )
+        raise SystemExit(0 if det.found else 1)
     print(f"[startup] UI Scale setting={args.ui_scale:g}% "
-          f"(template scale={ui_scale:.3f}x)")
+          f"(OCR-only party_apply mode)")
     LiveDemo(capture_interval_ms=args.interval,
              demo_scores=not args.real,
              monitor_index=args.monitor,
-             ui_scale=ui_scale,
+             ui_scale=1.0,
              window_title=args.window_title,
              neople_api_key=args.neople_api_key,
-             mode=args.mode).run()
+             mode=args.mode,
+             test_image_path=args.test_image).run()

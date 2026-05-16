@@ -4,16 +4,14 @@ This module detects the party-apply / raid-request list by matching small header
 anchors, then OCRs only the small row crops. Do not use full-screen OCR here:
 cold detection must stay fast enough to recover when the window opens, closes, or
 moves.
-
-Fame remains OCR-first because template digit matching proved brittle for this
-window. Template digit matching is kept only as a fallback when OCR returns no
-text.
 """
 
 from __future__ import annotations
 
 import logging
+import os
 import re
+import sys
 import time
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -22,23 +20,19 @@ import cv2
 import numpy as np
 from PIL import Image
 
-from match import match_row
 from neople import name_similarity  # kept for compatibility with older callers/imports
 from resources import resource_path
-from segment import (
-    color_text_mask,
-    detect_baseline,
-    find_chars,
-    reconcile_boxes,
-    text_mask,
-)
-from templates import Template
 
 try:
-    from general_ocr import read_fame as _ocr_fame, read_class as _ocr_class
+    from general_ocr import (
+        read_fame as _ocr_fame,
+        read_class as _ocr_class,
+        read_text_boxes as _ocr_text_boxes,
+    )
 except ImportError:
     _ocr_fame = None
     _ocr_class = None
+    _ocr_text_boxes = None
 
 
 def _otsu_mask(crop_rgb: np.ndarray) -> np.ndarray:
@@ -79,6 +73,10 @@ def _detect_top_text_y(
 
 _logger = logging.getLogger("dfogang.party_apply")
 
+_DEBUG_CROP_LIMIT = int(os.environ.get("DFO_DEBUG_CROP_LIMIT", "0"))
+_DEBUG_CROP_COUNT = 0
+_DEBUG_SESSION_LOGGED = False
+
 # Cold party-apply detection must be cheap. Native marker probes cover the
 # available marker captures. All column_header_*pct.png files are loaded
 # dynamically so marker updates do not require code changes.
@@ -112,10 +110,7 @@ REF_STATUS_X = (445, 620)
 REF_FIXED_PREFIX_NAME = "Lv. 115 "
 REF_FIXED_PREFIX_CLASS_REGEX = re.compile(r"^[A-Za-z]?Neo[: ]\s*")
 
-TEMPLATE_SCALE_FOR_PARTY_APPLY = 0.7
-TEMPLATE_SCALE_FOR_PARTY_APPLY_DIGITS = 0.5
-
-# Fame is OCR-first. These pads keep the digit crop generous across UI scales.
+# These pads keep the digit crop generous across UI scales.
 FAME_STAR_ICON_RIGHT_PAD = 22
 CLASS_BADGE_RIGHT_PAD = 30
 FAME_DIGIT_LEFT_BREATHING = 6
@@ -136,7 +131,7 @@ ROW_GATE_MIN_NAME_TRANSITIONS = 45
 # Applicant rows fill from the top of the request table. If the top rows are
 # empty, do not keep scanning down into unrelated game UI/background.
 ROW_GATE_MAX_INITIAL_EMPTY_ROWS = 4
-MAX_OCR_PER_FRAME = 3
+MAX_OCR_PER_FRAME = 12
 ROW_GATE_MIN_ACTION_PIXELS = 14
 ROW_OCR_CACHE_CAP = 128
 
@@ -147,6 +142,40 @@ _OPTIONAL_MARKER_PATHS = (
     resource_path("markers", "party_apply", "column_header_80pct.png"),
     resource_path("markers", "party_apply", "column_header_100pct.png"),
 )
+
+
+def _debug_dir() -> Path:
+    base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
+    return Path(base) / "DFOGANG_RaidHelper" / "debug_crops"
+
+
+def _debug_crop_stats(crop_rgb: np.ndarray) -> str:
+    if crop_rgb.size == 0:
+        return "empty"
+    gray = crop_rgb.max(axis=2) if crop_rgb.ndim == 3 else crop_rgb
+    return (
+        f"shape={tuple(crop_rgb.shape)} min={int(gray.min())} "
+        f"p25={float(np.percentile(gray, 25)):.1f} "
+        f"p50={float(np.percentile(gray, 50)):.1f} "
+        f"p90={float(np.percentile(gray, 90)):.1f} max={int(gray.max())}"
+    )
+
+
+def _save_debug_crop(label: str, crop_rgb: np.ndarray) -> None:
+    global _DEBUG_CROP_COUNT
+    if _DEBUG_CROP_LIMIT <= 0 or _DEBUG_CROP_COUNT >= _DEBUG_CROP_LIMIT:
+        return
+    if crop_rgb.size == 0:
+        return
+    try:
+        d = _debug_dir()
+        d.mkdir(parents=True, exist_ok=True)
+        safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", label).strip("_")[:80]
+        name = f"{_DEBUG_CROP_COUNT:03d}_{time.strftime('%H%M%S')}_{safe}.png"
+        Image.fromarray(crop_rgb).save(d / name)
+        _DEBUG_CROP_COUNT += 1
+    except Exception as exc:
+        _logger.debug("debug crop save failed label=%r: %s", label, exc)
 
 
 @dataclass
@@ -220,13 +249,44 @@ def _partial_fame_prefix(raw_digits: str) -> tuple[int, int] | None:
     return None
 
 
+@dataclass
+class _PendingOCRRow:
+    index: int
+    y_abs: tuple[int, int]
+    row_sig: bytes
+    fame_x: tuple[int, int]
+    fame_y: tuple[int, int]
+    name_x: tuple[int, int]
+    name_y: tuple[int, int]
+    class_x: tuple[int, int]
+    class_y: tuple[int, int]
+    adv_x: tuple[int, int]
+    adv_y: tuple[int, int]
+    scale: float
+
+
+@dataclass
+class _CompositeField:
+    row_pos: int
+    field: str
+    rect: tuple[int, int, int, int]
+
+
+@dataclass
+class _CompositeOCRResult:
+    fame_text: str = ""
+    fame_score: float = 0.0
+    name_raw: str = ""
+    name_score: float = 0.0
+    class_raw: str = ""
+    class_score: float = 0.0
+
+
 _ROW_OCR_CACHE: dict[bytes, PartyApplyRow] = {}
 
 
 def _cache_party_apply_row(sig: bytes, row: PartyApplyRow) -> None:
-    if len(_ROW_OCR_CACHE) >= ROW_OCR_CACHE_CAP:
-        _ROW_OCR_CACHE.pop(next(iter(_ROW_OCR_CACHE)))
-    _ROW_OCR_CACHE[sig] = row
+    return
 
 
 def _row_mask_signature(image_rgb: np.ndarray, rects: list[tuple[int, int, int, int]]) -> bytes:
@@ -759,6 +819,35 @@ def _build_detection(
     )
 
 
+def build_manual_party_apply_detection(
+    marker_xy: tuple[int, int],
+    scale: float,
+    image_shape: tuple[int, int] | tuple[int, int, int],
+    max_rows: int = MAX_OCR_PER_FRAME,
+) -> PartyApplyDetection:
+    """Build a detection from a user-calibrated column-header position.
+
+    The manual guide stores the column-header marker's top-left and scale.
+    Recognition can then reuse the same row/crop geometry without running the
+    template scanner every frame.
+    """
+    image_h = int(image_shape[0])
+    scale = max(0.2, float(scale))
+    marker_w = int(round(REF_MARKER_SIZE[0] * scale))
+    marker_h = int(round(REF_MARKER_SIZE[1] * scale))
+    return _build_detection(
+        scale=scale,
+        score=1.0,
+        marker_xy=(int(round(marker_xy[0])), int(round(marker_xy[1]))),
+        threshold=0.0,
+        marker_w=marker_w,
+        marker_h=marker_h,
+        max_rows=max_rows,
+        image_h=image_h,
+        grid_score=1.0,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Recognition
 # ---------------------------------------------------------------------------
@@ -766,10 +855,9 @@ def _build_detection(
 def recognize_party_apply(
     image_rgb: np.ndarray,
     det: PartyApplyDetection,
-    templates: dict[str, list[Template]],
-    digit_templates: dict[str, list[Template]] | None = None,
 ) -> list[PartyApplyRow]:
     """Read fame, name, class, and adventure for each detected row."""
+    global _DEBUG_SESSION_LOGGED
     if not det.found:
         return []
 
@@ -777,10 +865,16 @@ def recognize_party_apply(
     s = det.scale
     H, W = image_rgb.shape[:2]
 
-    if digit_templates is None:
-        digit_templates = {ch: v for ch, v in templates.items() if ch.isdigit() or ch == ","}
+    if not _DEBUG_SESSION_LOGGED:
+        _logger.info(
+            "party_apply diagnostics frozen=%s image=%sx%s marker=%s scale=%.4f rows=%d crop_dir=%s crop_limit=%d",
+            bool(getattr(sys, "frozen", False)), W, H, det.marker_xywh, s,
+            len(det.rows_top_y), _debug_dir(), _DEBUG_CROP_LIMIT,
+        )
+        _DEBUG_SESSION_LOGGED = True
 
-    out: list[PartyApplyRow] = []
+    out_by_index: dict[int, PartyApplyRow] = {}
+    pending_rows: list[_PendingOCRRow] = []
     empties_since_real = 0
     pitch = int(round(REF_ROW_PITCH * s))
     name_line_h = max(10, int(round(REF_ROW_TOP_LINE_H * s)))
@@ -816,9 +910,9 @@ def recognize_party_apply(
             def _mark_empty() -> bool:
                 nonlocal empties_since_real
                 empties_since_real += 1
-                if out and empties_since_real >= 3:
+                if out_by_index and empties_since_real >= 3:
                     return True
-                if not out and empties_since_real >= ROW_GATE_MAX_INITIAL_EMPTY_ROWS:
+                if not out_by_index and empties_since_real >= ROW_GATE_MAX_INITIAL_EMPTY_ROWS:
                     return True
                 return False
 
@@ -878,9 +972,9 @@ def recognize_party_apply(
 
         if ocr_rows_used >= MAX_OCR_PER_FRAME:
             empties_since_real += 1
-            if out and empties_since_real >= 3:
+            if out_by_index and empties_since_real >= 3:
                 break
-            if not out and empties_since_real >= ROW_GATE_MAX_INITIAL_EMPTY_ROWS:
+            if not out_by_index and empties_since_real >= ROW_GATE_MAX_INITIAL_EMPTY_ROWS:
                 break
             continue
         ocr_rows_used += 1
@@ -909,6 +1003,24 @@ def recognize_party_apply(
             fame_x[1] + int(round(FAME_DIGIT_RIGHT_BREATHING * s)),
         )
 
+        row_crop = image_rgb[max(0, row_top):min(H, bot_y1), max(0, fame_x[0]):min(W, status_x[1])]
+        fame_crop = image_rgb[max(0, top_y0):min(H, top_y1), max(0, fame_x_dig[0]):min(W, fame_x_dig[1])]
+        name_crop = image_rgb[max(0, name_y0):min(H, name_y1), max(0, name_x[0]):min(W, name_x[1])]
+        class_crop = image_rgb[max(0, bot_y0):min(H, bot_y1), max(0, class_x[0]):min(W, class_x[1])]
+        _logger.debug(
+            "row %d crop rects row=(%d,%d,%d,%d) fame=(%d,%d,%d,%d) name=(%d,%d,%d,%d) class=(%d,%d,%d,%d) row_stats=%s fame_stats=%s",
+            i,
+            max(0, fame_x[0]), max(0, row_top), min(W, status_x[1]), min(H, bot_y1),
+            max(0, fame_x_dig[0]), max(0, top_y0), min(W, fame_x_dig[1]), min(H, top_y1),
+            max(0, name_x[0]), max(0, name_y0), min(W, name_x[1]), min(H, name_y1),
+            max(0, class_x[0]), max(0, bot_y0), min(W, class_x[1]), min(H, bot_y1),
+            _debug_crop_stats(row_crop), _debug_crop_stats(fame_crop),
+        )
+        _save_debug_crop(f"row{i}_all_s{s:.3f}", row_crop)
+        _save_debug_crop(f"row{i}_fame_s{s:.3f}", fame_crop)
+        _save_debug_crop(f"row{i}_name_s{s:.3f}", name_crop)
+        _save_debug_crop(f"row{i}_class_s{s:.3f}", class_crop)
+
         row_sig = _row_mask_signature(
             image_rgb,
             [
@@ -918,19 +1030,28 @@ def recognize_party_apply(
                 (status_x[0], row_top, status_x[1], bot_y1),
             ],
         )
-        cached_row = _ROW_OCR_CACHE.get(row_sig)
-        if cached_row is not None:
-            row = replace(cached_row, index=i, y_abs=(top_y0, bot_y1))
-            if not row.is_empty:
-                empties_since_real = 0
-                out.append(row)
-                continue
+        class_x_text = (class_x[0] + int(round(CLASS_BADGE_RIGHT_PAD * s)), class_x[1])
+        pending_rows.append(_PendingOCRRow(
+            index=i,
+            y_abs=(top_y0, bot_y1),
+            row_sig=row_sig,
+            fame_x=fame_x_dig,
+            fame_y=(top_y0, top_y1),
+            name_x=name_x,
+            name_y=(name_y0, name_y1),
+            class_x=class_x_text,
+            class_y=(bot_y0, bot_y1),
+            adv_x=adv_x,
+            adv_y=(top_y0, top_y1),
+            scale=s,
+        ))
+        empties_since_real = 0
+        continue
 
         fame_value, fame_text, fame_score = _read_fame(
             image_rgb,
             fame_x_dig,
             (top_y0, top_y1),
-            digit_templates,
             s,
         )
 
@@ -948,14 +1069,14 @@ def recognize_party_apply(
                     "row %d partial fame prefix %r → [%d..%d]",
                     i, _raw_digits, fame_range_min, fame_range_max)
 
-        name_raw, name_score = _read_text(image_rgb, name_x, (name_y0, name_y1), templates)
+        name_raw, name_score = _read_text(image_rgb, name_x, (name_y0, name_y1))
         name = _strip_lv_prefix(name_raw)
 
         class_x_text = (class_x[0] + int(round(CLASS_BADGE_RIGHT_PAD * s)), class_x[1])
-        class_raw, class_score = _read_class(image_rgb, class_x_text, (bot_y0, bot_y1), templates)
+        class_raw, class_score = _read_class(image_rgb, class_x_text, (bot_y0, bot_y1))
         class_name = REF_FIXED_PREFIX_CLASS_REGEX.sub("", class_raw).strip()
 
-        adv_raw, adv_score = _read_text(image_rgb, adv_x, (top_y0, top_y1), templates)
+        adv_raw, adv_score = _read_text(image_rgb, adv_x, (top_y0, top_y1))
         adventure = adv_raw.strip("<>")
 
         row = PartyApplyRow(
@@ -989,41 +1110,248 @@ def recognize_party_apply(
         _cache_party_apply_row(row_sig, row)
         out.append(row)
 
-    return out
+    if pending_rows:
+        composite_results = _recognize_rows_composite(image_rgb, pending_rows)
+        for pos, pending in enumerate(pending_rows):
+            row = _build_row_from_ocr_result(
+                image_rgb,
+                pending,
+                composite_results.get(pos, _CompositeOCRResult()),
+            )
+            if row.is_empty:
+                continue
+            out_by_index[pending.index] = row
+
+    return [out_by_index[i] for i in sorted(out_by_index)]
+
+
+def _clip_rect(
+    image_rgb: np.ndarray,
+    x_range: tuple[int, int],
+    y_range: tuple[int, int],
+) -> tuple[int, int, int, int] | None:
+    H, W = image_rgb.shape[:2]
+    x0, x1 = max(0, x_range[0]), min(W, x_range[1])
+    y0, y1 = max(0, y_range[0]), min(H, y_range[1])
+    if x1 - x0 < 4 or y1 - y0 < 4:
+        return None
+    return x0, y0, x1, y1
+
+
+def _recognize_rows_composite(
+    image_rgb: np.ndarray,
+    rows: list[_PendingOCRRow],
+) -> dict[int, _CompositeOCRResult]:
+    if _ocr_text_boxes is None:
+        return {}
+
+    pad = 10
+    gap_x = 24
+    gap_y = 14
+    line_gap = 6
+    field_entries: list[tuple[int, str, np.ndarray]] = []
+    max_fame_w = 1
+    max_text_w = 1
+
+    for pos, row in enumerate(rows):
+        specs = (
+            ("fame", row.fame_x, row.fame_y),
+            ("name", row.name_x, row.name_y),
+            ("class", row.class_x, row.class_y),
+        )
+        for field, x_range, y_range in specs:
+            rect = _clip_rect(image_rgb, x_range, y_range)
+            if rect is None:
+                continue
+            x0, y0, x1, y1 = rect
+            crop = image_rgb[y0:y1, x0:x1]
+            if crop.size == 0:
+                continue
+            field_entries.append((pos, field, crop))
+            if field == "fame":
+                max_fame_w = max(max_fame_w, crop.shape[1])
+            else:
+                max_text_w = max(max_text_w, crop.shape[1])
+
+    if not field_entries:
+        return {}
+
+    row_heights: list[int] = []
+    for pos in range(len(rows)):
+        top_h = 1
+        class_h = 1
+        for entry_pos, field, crop in field_entries:
+            if entry_pos != pos:
+                continue
+            if field in ("fame", "name"):
+                top_h = max(top_h, crop.shape[0])
+            elif field == "class":
+                class_h = max(class_h, crop.shape[0])
+        row_heights.append(top_h + line_gap + class_h + gap_y)
+
+    canvas_w = pad * 2 + max_fame_w + gap_x + max_text_w
+    canvas_h = pad + sum(row_heights) + pad
+    canvas = np.zeros((canvas_h, canvas_w, 3), dtype=np.uint8)
+    field_rects: list[_CompositeField] = []
+    row_y = pad
+
+    for pos, row_h in enumerate(row_heights):
+        top_h = max(
+            [crop.shape[0] for entry_pos, field, crop in field_entries
+             if entry_pos == pos and field in ("fame", "name")] or [1]
+        )
+        for entry_pos, field, crop in field_entries:
+            if entry_pos != pos:
+                continue
+            if field == "fame":
+                x = pad
+                y = row_y
+            elif field == "name":
+                x = pad + max_fame_w + gap_x
+                y = row_y
+            else:
+                x = pad + max_fame_w + gap_x
+                y = row_y + top_h + line_gap
+            h, w = crop.shape[:2]
+            canvas[y:y + h, x:x + w] = crop
+            field_rects.append(_CompositeField(pos, field, (x, y, x + w, y + h)))
+        row_y += row_h
+
+    _save_debug_crop("composite_ocr", canvas)
+    boxes = _ocr_text_boxes(canvas)
+    results = {pos: _CompositeOCRResult() for pos in range(len(rows))}
+    assigned: dict[tuple[int, str], list] = {}
+    margin = 3
+    for box in boxes:
+        cx = box.cx
+        cy = box.cy
+        for field_rect in field_rects:
+            x0, y0, x1, y1 = field_rect.rect
+            if x0 - margin <= cx <= x1 + margin and y0 - margin <= cy <= y1 + margin:
+                assigned.setdefault((field_rect.row_pos, field_rect.field), []).append(box)
+                break
+
+    for (pos, field), field_boxes in assigned.items():
+        field_boxes.sort(key=lambda b: b.x0)
+        text = " ".join(b.text.strip() for b in field_boxes if b.text.strip()).strip()
+        score = float(np.mean([b.confidence for b in field_boxes])) if field_boxes else 0.0
+        if field == "fame":
+            results[pos].fame_text = text
+            results[pos].fame_score = score
+        elif field == "name":
+            results[pos].name_raw = text
+            results[pos].name_score = score
+        elif field == "class":
+            results[pos].class_raw = text
+            results[pos].class_score = score
+
+    _logger.debug(
+        "composite OCR rows=%d image=%s boxes=%d assigned=%d",
+        len(rows), tuple(canvas.shape), len(boxes), sum(len(v) for v in assigned.values()),
+    )
+    return results
+
+
+def _parse_fame_value(text: str) -> int | None:
+    digits = re.sub(r"[^0-9]", "", text)
+    if not digits:
+        return None
+    candidates = {digits}
+    if len(digits) > 1:
+        candidates.add(digits[1:])
+        candidates.add(digits[:-1])
+    if len(digits) > 2:
+        candidates.add(digits[1:-1])
+    best: int | None = None
+    for cand in candidates:
+        if not cand:
+            continue
+        try:
+            value = int(cand)
+        except ValueError:
+            continue
+        if 10_000 <= value <= 999_999 and (best is None or len(cand) > len(str(best))):
+            best = value
+    return best
+
+
+def _build_row_from_ocr_result(
+    image_rgb: np.ndarray,
+    row: _PendingOCRRow,
+    result: _CompositeOCRResult,
+) -> PartyApplyRow:
+    fame_text = result.fame_text
+    fame_score = result.fame_score
+    fame_value = _parse_fame_value(fame_text)
+    if fame_value is None or not fame_text:
+        fame_value, fame_text, fame_score = _read_fame(
+            image_rgb, row.fame_x, row.fame_y, row.scale)
+
+    fame_range_min: int | None = None
+    fame_range_max: int | None = None
+    if fame_value is None and fame_text:
+        raw_digits = re.sub(r"[^0-9]", "", fame_text)
+        partial = _partial_fame_prefix(raw_digits)
+        if partial is not None:
+            fame_range_min, fame_range_max = partial
+            _logger.debug(
+                "row %d partial fame prefix %r -> [%d..%d]",
+                row.index, raw_digits, fame_range_min, fame_range_max)
+
+    name_raw = result.name_raw
+    name_score = result.name_score
+    if not name_raw:
+        name_raw, name_score = _read_text(image_rgb, row.name_x, row.name_y)
+    name = _strip_lv_prefix(name_raw)
+
+    class_raw = result.class_raw
+    class_score = result.class_score
+    if not class_raw:
+        class_raw, class_score = _read_class(image_rgb, row.class_x, row.class_y)
+    class_name = REF_FIXED_PREFIX_CLASS_REGEX.sub("", class_raw).strip()
+
+    return PartyApplyRow(
+        index=row.index,
+        y_abs=row.y_abs,
+        fame=fame_value,
+        fame_text=fame_text,
+        fame_score=fame_score,
+        name=name,
+        name_raw=name_raw,
+        name_score=name_score,
+        class_name=class_name,
+        class_raw=class_raw,
+        class_score=class_score,
+        adventure="",
+        adventure_raw="",
+        adventure_score=0.0,
+        fame_range_min=fame_range_min,
+        fame_range_max=fame_range_max,
+    )
 
 
 def _read_text(
     image_rgb: np.ndarray,
     x_range: tuple[int, int],
     y_range: tuple[int, int],
-    templates: dict[str, list[Template]],
 ) -> tuple[str, float]:
     H, W = image_rgb.shape[:2]
     x0, x1 = max(0, x_range[0]), min(W, x_range[1])
     y0, y1 = max(0, y_range[0]), min(H, y_range[1])
     if x1 - x0 < 4 or y1 - y0 < 4:
         return "", 0.0
+    if _ocr_text_boxes is None:
+        return "", 0.0
 
     crop = image_rgb[y0:y1, x0:x1]
-    mask = _otsu_mask(crop)
-
-    if (mask > 0).sum() < ROW_MIN_TEXT_PIXELS:
-        mask = text_mask(crop)
-    if (mask > 0).sum() < ROW_MIN_TEXT_PIXELS:
-        mask = color_text_mask(crop)
-    if (mask > 0).sum() < ROW_MIN_TEXT_PIXELS:
+    if crop.size == 0:
         return "", 0.0
-
-    boxes = find_chars(mask)
+    boxes = _ocr_text_boxes(crop)
     if not boxes:
         return "", 0.0
-
-    baseline = detect_baseline(mask)
-    text, matches = match_row(mask, boxes, baseline, templates)
-    if not matches:
-        return text, 0.0
-
-    mean = float(np.mean([m.score for m in matches]))
+    boxes.sort(key=lambda b: b.x0)
+    text = " ".join(b.text.strip() for b in boxes if b.text.strip()).strip()
+    mean = float(np.mean([b.confidence for b in boxes])) if boxes else 0.0
     return text, mean
 
 
@@ -1031,10 +1359,9 @@ def _read_fame(
     image_rgb: np.ndarray,
     x_range: tuple[int, int],
     y_range: tuple[int, int],
-    digit_templates: dict[str, list[Template]],
     scale: float,
 ) -> tuple[int | None, str, float]:
-    """General OCR first, template fallback. Returns (value, text, conf)."""
+    """General OCR only. Returns (value, text, conf)."""
     H, W = image_rgb.shape[:2]
 
     if _ocr_fame is not None:
@@ -1052,22 +1379,15 @@ def _read_fame(
             if text:
                 return None, text, conf
 
-    text, score, value = _read_digits_via_templates(
-        image_rgb,
-        x_range,
-        y_range,
-        digit_templates,
-    )
-    return value, text, score
+    return None, "", 0.0
 
 
 def _read_class(
     image_rgb: np.ndarray,
     x_range: tuple[int, int],
     y_range: tuple[int, int],
-    templates: dict[str, list[Template]],
 ) -> tuple[str, float]:
-    """General OCR first, template fallback."""
+    """General OCR only."""
     H, W = image_rgb.shape[:2]
 
     if _ocr_class is not None:
@@ -1082,48 +1402,7 @@ def _read_class(
             if text:
                 return text, conf
 
-    return _read_text(image_rgb, x_range, y_range, templates)
-
-
-def _read_digits_via_templates(
-    image_rgb: np.ndarray,
-    x_range: tuple[int, int],
-    y_range: tuple[int, int],
-    digit_templates: dict[str, list[Template]],
-) -> tuple[str, float, int | None]:
-    H, W = image_rgb.shape[:2]
-    x0, x1 = max(0, x_range[0]), min(W, x_range[1])
-    y0, y1 = max(0, y_range[0]), min(H, y_range[1])
-    if x1 - x0 < 4 or y1 - y0 < 4:
-        return "", 0.0, None
-
-    crop = image_rgb[y0:y1, x0:x1]
-    mask = _otsu_mask(crop)
-    if (mask > 0).sum() < 6:
-        mask = text_mask(crop, offset=35.0)
-
-    boxes = find_chars(mask)
-    if not boxes:
-        return "", 0.0, None
-
-    baseline = detect_baseline(mask)
-    text, matches = match_row(mask, boxes, baseline, digit_templates, width_tol=4, height_tol=4)
-    digits = "".join(m.char for m in matches if m.char.isdigit())
-    if not digits:
-        return text, 0.0, None
-
-    digit_scores = [m.score for m in matches if m.char.isdigit()]
-    mean = float(np.mean(digit_scores)) if digit_scores else 0.0
-
-    try:
-        value = int(digits)
-    except ValueError:
-        return digits, mean, None
-
-    if not (10_000 <= value <= 999_999):
-        return digits, mean, None
-
-    return digits, mean, value
+    return "", 0.0
 
 
 def _strip_lv_prefix(text: str) -> str:
@@ -1152,8 +1431,6 @@ if __name__ == "__main__":
 
     sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-    from recognize import load_default_templates, ui_scale_setting_to_factor
-
     parser = argparse.ArgumentParser()
     parser.add_argument("image")
     parser.add_argument(
@@ -1165,8 +1442,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     REF_UI_SCALE_PCT = 69.0
-    actual = ui_scale_setting_to_factor(args.ui_scale)
-    ref_factor = ui_scale_setting_to_factor(REF_UI_SCALE_PCT)
+    actual = max(0.35, 1.0 + (float(args.ui_scale) - 69.0) / 100.0)
+    ref_factor = max(0.35, 1.0 + (REF_UI_SCALE_PCT - 69.0) / 100.0)
     near = actual / ref_factor
 
     img = np.array(Image.open(args.image).convert("RGB"))
@@ -1180,10 +1457,7 @@ if __name__ == "__main__":
     if not det.found:
         return_code = 1
     else:
-        templates = load_default_templates(ui_scale=TEMPLATE_SCALE_FOR_PARTY_APPLY * near)
-        digit_lib = load_default_templates(ui_scale=TEMPLATE_SCALE_FOR_PARTY_APPLY_DIGITS * near)
-        digit_templates = {ch: v for ch, v in digit_lib.items() if ch.isdigit() or ch == ","}
-        rows = recognize_party_apply(img, det, templates, digit_templates)
+        rows = recognize_party_apply(img, det)
 
         for r in rows:
             print(

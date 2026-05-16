@@ -4,9 +4,13 @@ from __future__ import annotations
 
 import os
 import sys
+import base64
+import ctypes
+from ctypes import wintypes
+import json
 from pathlib import Path
 
-from PyQt6.QtCore import QPoint, QSize, Qt, QUrl
+from PyQt6.QtCore import QPoint, QRect, QSize, Qt, QUrl, pyqtSignal
 from PyQt6.QtGui import (
     QColor,
     QDesktopServices,
@@ -14,16 +18,19 @@ from PyQt6.QtGui import (
     QFontDatabase,
     QIcon,
     QPainter,
+    QPen,
     QPixmap,
     QPolygon,
 )
 from PyQt6.QtWidgets import (
     QApplication,
     QHBoxLayout,
+    QFileDialog,
     QLabel,
     QLineEdit,
     QProgressBar,
     QPushButton,
+    QSlider,
     QVBoxLayout,
     QWidget,
 )
@@ -45,9 +52,10 @@ except Exception:
 
 APP_DISPLAY_NAME = f"{APP_NAME} {APP_VERSION}"
 APP_VERSION_LABEL = f"{APP_VERSION} ({_BUILD_ID})"
+INSTANCE_MUTEX_NAME = r"Local\DFOGANG_RaidHelper_v1"
 
 PORTABLE_DIR = Path(r"C:\Users\Noble\Desktop\works\DFOGANG")
-DEFAULT_CAPTURE_INTERVAL_MS = 250
+DEFAULT_CAPTURE_INTERVAL_MS = 0
 NEOPLE_KEY_URL = "https://www.dfoneople.com/developers/manage/app/list"
 
 CANVAS_BG_COLOR = "#1e1e1e"
@@ -60,9 +68,27 @@ LOGO_OPACITY = 0.1
 LOGO_HEIGHT_RATIO = 0.6
 LOGO_TOP_MARGIN_RATIO = 0.05
 DEFAULT_WINDOW_TITLE = "Dungeon Fighter Online"
+SETTINGS_FILE = "settings.json"
+
+GUIDE_REF_MARKER_SIZE = (734, 16)
+GUIDE_REF_MARKER_LEFT_IN_WINDOW = 38
+GUIDE_REF_MARKER_TOP_IN_WINDOW = 83
+GUIDE_REF_WINDOW_SIZE = (812, 590)
+GUIDE_REF_FIRST_ROW_TOP_DY = 36
+GUIDE_REF_ROW_PITCH = 56
+GUIDE_MAX_ROWS = 6
 
 ACTION_BUTTON_SIZE = 36
 ACTION_ICON_SIZE = 22
+
+_INSTANCE_MUTEX_HANDLE = None
+
+
+class _DataBlob(ctypes.Structure):
+    _fields_ = [
+        ("cbData", wintypes.DWORD),
+        ("pbData", ctypes.POINTER(ctypes.c_char)),
+    ]
 
 
 def bundled_or_portable(filename: str) -> Path:
@@ -70,6 +96,164 @@ def bundled_or_portable(filename: str) -> Path:
     if bundled.exists():
         return bundled
     return PORTABLE_DIR / filename
+
+
+def acquire_single_instance() -> bool:
+    """Return False when another Raid Helper instance is already running."""
+    global _INSTANCE_MUTEX_HANDLE
+
+    if sys.platform != "win32":
+        return True
+
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.CreateMutexW.argtypes = (
+            wintypes.LPVOID,
+            wintypes.BOOL,
+            wintypes.LPCWSTR,
+        )
+        kernel32.CreateMutexW.restype = wintypes.HANDLE
+        kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
+        kernel32.CloseHandle.restype = wintypes.BOOL
+
+        handle = kernel32.CreateMutexW(None, False, INSTANCE_MUTEX_NAME)
+        if not handle:
+            return True
+
+        if ctypes.get_last_error() == 183:  # ERROR_ALREADY_EXISTS
+            kernel32.CloseHandle(handle)
+            return False
+
+        _INSTANCE_MUTEX_HANDLE = handle
+    except Exception:
+        return True
+
+    return True
+
+
+def _settings_path() -> Path:
+    base = os.environ.get("LOCALAPPDATA")
+    if base:
+        root = Path(base)
+    else:
+        root = Path.home()
+    return root / "DFOGANG_RaidHelper" / SETTINGS_FILE
+
+
+def load_settings() -> dict:
+    try:
+        path = _settings_path()
+        if not path.exists():
+            return {}
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def save_settings(data: dict) -> None:
+    try:
+        path = _settings_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(data, ensure_ascii=True, indent=2), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def _protect_secret(value: str) -> str:
+    raw = value.encode("utf-8")
+    if sys.platform != "win32":
+        return "plain:" + base64.b64encode(raw).decode("ascii")
+
+    crypt32 = ctypes.WinDLL("crypt32", use_last_error=True)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    crypt32.CryptProtectData.argtypes = (
+        ctypes.POINTER(_DataBlob),
+        wintypes.LPCWSTR,
+        ctypes.POINTER(_DataBlob),
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+        wintypes.DWORD,
+        ctypes.POINTER(_DataBlob),
+    )
+    crypt32.CryptProtectData.restype = wintypes.BOOL
+    kernel32.LocalFree.argtypes = (ctypes.c_void_p,)
+    kernel32.LocalFree.restype = ctypes.c_void_p
+
+    in_buf = ctypes.create_string_buffer(raw)
+    in_blob = _DataBlob(len(raw), ctypes.cast(in_buf, ctypes.POINTER(ctypes.c_char)))
+    out_blob = _DataBlob()
+    ok = crypt32.CryptProtectData(
+        ctypes.byref(in_blob), None, None, None, None, 0, ctypes.byref(out_blob)
+    )
+    if not ok:
+        raise ctypes.WinError(ctypes.get_last_error())
+    try:
+        encrypted = ctypes.string_at(out_blob.pbData, out_blob.cbData)
+        return "dpapi:" + base64.b64encode(encrypted).decode("ascii")
+    finally:
+        kernel32.LocalFree(out_blob.pbData)
+
+
+def _unprotect_secret(value: str) -> str:
+    if value.startswith("plain:"):
+        return base64.b64decode(value[6:].encode("ascii")).decode("utf-8")
+    if not value.startswith("dpapi:") or sys.platform != "win32":
+        return ""
+
+    encrypted = base64.b64decode(value[6:].encode("ascii"))
+    crypt32 = ctypes.WinDLL("crypt32", use_last_error=True)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    crypt32.CryptUnprotectData.argtypes = (
+        ctypes.POINTER(_DataBlob),
+        ctypes.POINTER(wintypes.LPWSTR),
+        ctypes.POINTER(_DataBlob),
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+        wintypes.DWORD,
+        ctypes.POINTER(_DataBlob),
+    )
+    crypt32.CryptUnprotectData.restype = wintypes.BOOL
+    kernel32.LocalFree.argtypes = (ctypes.c_void_p,)
+    kernel32.LocalFree.restype = ctypes.c_void_p
+
+    in_buf = ctypes.create_string_buffer(encrypted)
+    in_blob = _DataBlob(
+        len(encrypted), ctypes.cast(in_buf, ctypes.POINTER(ctypes.c_char))
+    )
+    out_blob = _DataBlob()
+    ok = crypt32.CryptUnprotectData(
+        ctypes.byref(in_blob), None, None, None, None, 0, ctypes.byref(out_blob)
+    )
+    if not ok:
+        return ""
+    try:
+        raw = ctypes.string_at(out_blob.pbData, out_blob.cbData)
+        return raw.decode("utf-8")
+    finally:
+        kernel32.LocalFree(out_blob.pbData)
+
+
+def load_api_key() -> str:
+    try:
+        data = load_settings()
+        return _unprotect_secret(str(data.get("neople_api_key", "")))
+    except Exception:
+        return ""
+
+
+def save_api_key(api_key: str) -> None:
+    try:
+        data = load_settings()
+        data = {"neople_api_key": _protect_secret(api_key.strip()) if api_key.strip() else ""}
+        existing = load_settings()
+        existing.update(data)
+        save_settings(existing)
+    except Exception:
+        pass
 
 
 class TitleButton(QLabel):
@@ -81,11 +265,162 @@ class TitleButton(QLabel):
         self.setStyleSheet(f"color: {DISABLED_TEXT_COLOR}; background: transparent;")
 
 
+class ManualGuideOverlay(QWidget):
+    moved = pyqtSignal()
+
+    def __init__(self, marker_x: float, marker_y: float, scale: float):
+        super().__init__(
+            None,
+            Qt.WindowType.FramelessWindowHint
+            | Qt.WindowType.WindowStaysOnTopHint
+            | Qt.WindowType.Tool,
+        )
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setMouseTracking(True)
+        self.marker_x = float(marker_x)
+        self.marker_y = float(marker_y)
+        self.scale = float(scale)
+        self._dragging = False
+        self._hover_handle = False
+        self._last_global = QPoint()
+        self._refresh_geometry()
+
+    def _refresh_geometry(self) -> None:
+        app = QApplication.instance()
+        desktop = QRect()
+        if app is not None:
+            for screen in app.screens():
+                desktop = desktop.united(screen.geometry())
+        if not desktop.isNull():
+            self.setGeometry(desktop)
+
+    def set_scale(self, scale: float) -> None:
+        self.scale = max(0.35, min(1.8, float(scale)))
+        self.update()
+        self.moved.emit()
+
+    def _screen_dpr_at(self, point: QPoint) -> float:
+        app = QApplication.instance()
+        if app is None:
+            return 1.0
+        screen = app.screenAt(point)
+        if screen is None and app.screens():
+            screen = app.screens()[0]
+        return max(float(screen.devicePixelRatio()) if screen is not None else 1.0, 1.0)
+
+    def _physical_to_local(self, x: float, y: float) -> QPoint:
+        app = QApplication.instance()
+        if app is not None:
+            for screen in app.screens():
+                geo = screen.geometry()
+                dpr = self._screen_dpr_at(geo.center())
+                px0 = geo.x() * dpr
+                py0 = geo.y() * dpr
+                px1 = px0 + geo.width() * dpr
+                py1 = py0 + geo.height() * dpr
+                if px0 <= x <= px1 and py0 <= y <= py1:
+                    gx = geo.x() + (x - px0) / dpr
+                    gy = geo.y() + (y - py0) / dpr
+                    origin = self.mapToGlobal(QPoint(0, 0))
+                    return QPoint(int(round(gx - origin.x())), int(round(gy - origin.y())))
+        origin = self.mapToGlobal(QPoint(0, 0))
+        return QPoint(int(round(x - origin.x())), int(round(y - origin.y())))
+
+    def _guide_rect(self) -> QRect:
+        s = self.scale
+        marker = self._physical_to_local(self.marker_x, self.marker_y)
+        left = marker.x() - int(round(GUIDE_REF_MARKER_LEFT_IN_WINDOW * s))
+        top = marker.y() - int(round(GUIDE_REF_MARKER_TOP_IN_WINDOW * s))
+        return QRect(
+            left,
+            top,
+            int(round(GUIDE_REF_WINDOW_SIZE[0] * s)),
+            int(round(GUIDE_REF_WINDOW_SIZE[1] * s)),
+        )
+
+    def _marker_rect(self) -> QRect:
+        marker = self._physical_to_local(self.marker_x, self.marker_y)
+        return QRect(
+            marker.x(),
+            marker.y(),
+            int(round(GUIDE_REF_MARKER_SIZE[0] * self.scale)),
+            int(round(GUIDE_REF_MARKER_SIZE[1] * self.scale)),
+        )
+
+    def _handle_rect(self) -> QRect:
+        guide = self._guide_rect()
+        size = max(14, int(round(18 * self.scale)))
+        return QRect(guide.right() - size + 1, guide.top(), size, size)
+
+    def paintEvent(self, event) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        active = self._hover_handle or self._dragging
+        color = QColor(0, 154, 218, 230 if active else 80)
+        width = 3 if active else 1
+        painter.setPen(QPen(color, width))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+
+        guide = self._guide_rect()
+        marker = self._marker_rect()
+        painter.drawRect(guide)
+        painter.drawRect(marker)
+
+        x0 = marker.left()
+        x1 = marker.right()
+        for row in range(GUIDE_MAX_ROWS + 1):
+            y = marker.top() + int(round((GUIDE_REF_FIRST_ROW_TOP_DY + row * GUIDE_REF_ROW_PITCH) * self.scale))
+            painter.drawLine(x0, y, x1, y)
+
+        handle = self._handle_rect()
+        handle_color = QColor(0, 154, 218, 240 if active else 95)
+        painter.setPen(QPen(handle_color, 2 if active else 1))
+        painter.setBrush(QColor(0, 154, 218, 70 if active else 20))
+        painter.drawRect(handle)
+        painter.end()
+
+    def mouseMoveEvent(self, event) -> None:
+        pos = event.position().toPoint()
+        over = self._handle_rect().contains(pos)
+        if over != self._hover_handle:
+            self._hover_handle = over
+            self.update()
+        if self._dragging:
+            current = event.globalPosition().toPoint()
+            delta = current - self._last_global
+            dpr = self._screen_dpr_at(current)
+            self.marker_x += delta.x() * dpr
+            self.marker_y += delta.y() * dpr
+            self._last_global = current
+            self.update()
+            self.moved.emit()
+
+    def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.LeftButton and self._handle_rect().contains(event.position().toPoint()):
+            self._dragging = True
+            self._last_global = event.globalPosition().toPoint()
+            self.update()
+
+    def mouseReleaseEvent(self, event) -> None:
+        if self._dragging:
+            self._dragging = False
+            self.update()
+            self.moved.emit()
+
+    def leaveEvent(self, event) -> None:
+        if self._hover_handle:
+            self._hover_handle = False
+            self.update()
+
+
 class ControlWindow(QWidget):
     def __init__(self):
         super().__init__()
 
         self.demo = None
+        self.guide_overlay: ManualGuideOverlay | None = None
+        self.manual_party_apply = self._load_manual_party_apply()
+        self.test_image_path = str(load_settings().get("test_image_path", "") or "")
 
         # Closed-but-not-yet-collected demos. Keep strong refs so worker
         # threads can finish final frames without touching destroyed QObjects.
@@ -97,7 +432,7 @@ class ControlWindow(QWidget):
 
         self.setWindowTitle(APP_DISPLAY_NAME)
 
-        icon_path = bundled_or_portable("favicon.ico")
+        icon_path = bundled_or_portable("ch49gangraidlogo.ico")
         if icon_path.exists():
             self.setWindowIcon(QIcon(str(icon_path)))
 
@@ -105,8 +440,8 @@ class ControlWindow(QWidget):
             Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        self.setMinimumSize(330, 142)
-        self.resize(350, 152)
+        self.setMinimumSize(430, 178)
+        self.resize(450, 188)
 
         self._build_ui()
 
@@ -161,6 +496,10 @@ class ControlWindow(QWidget):
         self.api_key_input.setToolTip(
             "Register and receive a key from Neople Developers, then paste it here."
         )
+        self.api_key_input.setText(load_api_key())
+        self.api_key_input.editingFinished.connect(
+            lambda: save_api_key(self.api_key_input.text())
+        )
 
         self.api_help_btn = QPushButton("?")
         self.api_help_btn.setFixedSize(ACTION_BUTTON_SIZE, ACTION_BUTTON_SIZE)
@@ -190,6 +529,30 @@ class ControlWindow(QWidget):
         status_row.addWidget(self.status_pill, 1)
         status_row.addWidget(self.toggle_btn)
         root.addLayout(status_row)
+
+        manual_row = QHBoxLayout()
+        manual_row.setSpacing(8)
+
+        self.scale_slider = QSlider(Qt.Orientation.Horizontal)
+        self.scale_slider.setRange(35, 180)
+        self.scale_slider.setValue(int(round(float(self.manual_party_apply.get("scale", 1.0)) * 100)))
+        self.scale_slider.setToolTip("Manual request-window guide scale.")
+        self.scale_slider.valueChanged.connect(self._manual_scale_changed)
+
+        self.area_btn = QPushButton("AREA")
+        self.area_btn.setFixedSize(54, ACTION_BUTTON_SIZE)
+        self.area_btn.setToolTip("Show or hide the manual request-window guide.")
+        self.area_btn.clicked.connect(lambda _: self.toggle_manual_guide())
+
+        self.image_btn = QPushButton("IMG")
+        self.image_btn.setFixedSize(48, ACTION_BUTTON_SIZE)
+        self.image_btn.setToolTip("Select a screenshot for debug testing.")
+        self.image_btn.clicked.connect(lambda _: self.select_test_image())
+
+        manual_row.addWidget(self.scale_slider, 1)
+        manual_row.addWidget(self.area_btn)
+        manual_row.addWidget(self.image_btn)
+        root.addLayout(manual_row)
 
         self.progress = QProgressBar()
         self.progress.setRange(0, 0)
@@ -324,6 +687,123 @@ class ControlWindow(QWidget):
     def mouseReleaseEvent(self, event) -> None:
         self.drag_pos = None
 
+    def _load_manual_party_apply(self) -> dict:
+        data = load_settings().get("manual_party_apply", {})
+        return data if isinstance(data, dict) else {}
+
+    def _save_manual_party_apply(self) -> None:
+        data = load_settings()
+        if self.manual_party_apply:
+            data["manual_party_apply"] = self.manual_party_apply
+        else:
+            data.pop("manual_party_apply", None)
+        save_settings(data)
+
+    def _find_game_window_rect(self) -> tuple[int, int, int, int] | None:
+        try:
+            import win32gui
+
+            needle = DEFAULT_WINDOW_TITLE.lower()
+            matches = []
+
+            def enum_cb(hwnd, _):
+                if not win32gui.IsWindowVisible(hwnd):
+                    return
+                title = win32gui.GetWindowText(hwnd)
+                if needle not in title.lower():
+                    return
+                left, top, right, bottom = win32gui.GetWindowRect(hwnd)
+                area = max(0, right - left) * max(0, bottom - top)
+                if area > 0:
+                    matches.append((area, left, top, right, bottom))
+
+            win32gui.EnumWindows(enum_cb, None)
+            if not matches:
+                return None
+            _, left, top, right, bottom = max(matches, key=lambda item: item[0])
+            return left, top, right, bottom
+        except Exception:
+            return None
+
+    def _initial_manual_marker(self) -> tuple[float, float, float]:
+        scale = float(self.manual_party_apply.get("scale", 1.0))
+        win_rect = self._find_game_window_rect()
+        if win_rect is not None and "marker_x_rel" in self.manual_party_apply:
+            left, top, _, _ = win_rect
+            return (
+                left + float(self.manual_party_apply.get("marker_x_rel", 0.0)),
+                top + float(self.manual_party_apply.get("marker_y_rel", 0.0)),
+                scale,
+            )
+        if win_rect is not None:
+            left, top, _, _ = win_rect
+            return (
+                left + GUIDE_REF_MARKER_LEFT_IN_WINDOW * scale,
+                top + GUIDE_REF_MARKER_TOP_IN_WINDOW * scale,
+                scale,
+            )
+        return 120.0, 120.0, scale
+
+    def toggle_manual_guide(self) -> None:
+        if self.guide_overlay is not None:
+            self._sync_manual_from_guide()
+            self.guide_overlay.close()
+            self.guide_overlay = None
+            self.area_btn.setText("AREA")
+            return
+
+        marker_x, marker_y, scale = self._initial_manual_marker()
+        self.guide_overlay = ManualGuideOverlay(marker_x, marker_y, scale)
+        self.guide_overlay.moved.connect(self._sync_manual_from_guide)
+        self.guide_overlay.show()
+        self.scale_slider.blockSignals(True)
+        self.scale_slider.setValue(int(round(scale * 100)))
+        self.scale_slider.blockSignals(False)
+        self.area_btn.setText("HIDE")
+        self._sync_manual_from_guide()
+
+    def _manual_scale_changed(self, value: int) -> None:
+        scale = max(0.35, min(1.8, value / 100.0))
+        if self.guide_overlay is not None:
+            self.guide_overlay.set_scale(scale)
+        else:
+            self.manual_party_apply["scale"] = scale
+            self._save_manual_party_apply()
+
+    def _sync_manual_from_guide(self) -> None:
+        guide = self.guide_overlay
+        if guide is None:
+            return
+        win_rect = self._find_game_window_rect()
+        if win_rect is None:
+            left, top = 0, 0
+        else:
+            left, top, _, _ = win_rect
+        self.manual_party_apply = {
+            "enabled": True,
+            "marker_x_rel": round(float(guide.marker_x - left), 2),
+            "marker_y_rel": round(float(guide.marker_y - top), 2),
+            "scale": round(float(guide.scale), 4),
+        }
+        self._save_manual_party_apply()
+
+    def select_test_image(self) -> None:
+        initial = str(Path(self.test_image_path).parent) if self.test_image_path else str(Path.home())
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select screenshot",
+            initial,
+            "Images (*.png *.jpg *.jpeg *.bmp);;All Files (*)",
+        )
+        if not path:
+            return
+        self.test_image_path = path
+        data = load_settings()
+        data["test_image_path"] = self.test_image_path
+        save_settings(data)
+        self.status_pill.setText("IMAGE SELECTED")
+        self.status_pill.setStyleSheet(self._pill_style(HIGHLIGHT_TEXT_COLOR))
+
     def toggle_overlay(self) -> None:
         if self.demo is not None:
             self.stop_overlay()
@@ -341,6 +821,12 @@ class ControlWindow(QWidget):
         self.status_pill.setStyleSheet(self._pill_style(HIGHLIGHT_TEXT_COLOR))
 
         try:
+            save_api_key(self.api_key_input.text())
+            self._sync_manual_from_guide()
+            if self.guide_overlay is not None:
+                self.guide_overlay.close()
+                self.guide_overlay = None
+                self.area_btn.setText("AREA")
             from app import LiveDemo
 
             self.demo = LiveDemo(
@@ -350,6 +836,8 @@ class ControlWindow(QWidget):
                 window_title=DEFAULT_WINDOW_TITLE,
                 neople_api_key=self.api_key_input.text().strip(),
                 mode="party_apply",
+                manual_party_apply=self.manual_party_apply if self.manual_party_apply.get("marker_x_rel") is not None else None,
+                test_image_path=self.test_image_path or None,
                 unavailable_callback=self._overlay_unavailable,
                 waiting_callback=self._overlay_waiting,
                 recovered_callback=self._overlay_recovered,
@@ -391,6 +879,10 @@ class ControlWindow(QWidget):
         self.status_pill.setStyleSheet(self._pill_style(DISABLED_TEXT_COLOR))
 
     def closeEvent(self, event) -> None:
+        if self.guide_overlay is not None:
+            self._sync_manual_from_guide()
+            self.guide_overlay.close()
+            self.guide_overlay = None
         self.stop_overlay()
         super().closeEvent(event)
 
@@ -434,9 +926,20 @@ class ControlWindow(QWidget):
     def _set_controls_enabled(self, enabled: bool) -> None:
         self.api_key_input.setEnabled(enabled)
         self.api_help_btn.setEnabled(enabled)
+        self.scale_slider.setEnabled(enabled)
+        self.area_btn.setEnabled(enabled)
+        self.image_btn.setEnabled(enabled)
 
 
 def main() -> int:
+    if not acquire_single_instance():
+        return 0
+
+    try:
+        import pyi_splash
+    except Exception:
+        pyi_splash = None
+
     configure_qt_high_dpi()
 
     app = QApplication.instance() or QApplication(sys.argv)
@@ -446,6 +949,12 @@ def main() -> int:
 
     win = ControlWindow()
     win.show()
+
+    if pyi_splash is not None:
+        try:
+            pyi_splash.close()
+        except Exception:
+            pass
 
     return app.exec()
 
