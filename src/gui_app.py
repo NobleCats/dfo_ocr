@@ -6,6 +6,7 @@ import os
 import sys
 import base64
 import ctypes
+import time
 from ctypes import wintypes
 from datetime import datetime
 import json
@@ -54,7 +55,7 @@ APP_DISPLAY_NAME = f"{APP_NAME} {APP_VERSION}"
 APP_VERSION_LABEL = f"{APP_VERSION} ({_BUILD_ID})"
 INSTANCE_MUTEX_NAME = r"Local\DFOGANG_RaidHelper_v1"
 
-DEFAULT_CAPTURE_INTERVAL_MS = 0
+DEFAULT_CAPTURE_INTERVAL_MS = 80
 NEOPLE_KEY_URL = "https://www.dfoneople.com/developers/manage/app/list"
 
 CANVAS_BG_COLOR = "#1e1e1e"
@@ -87,8 +88,8 @@ GUIDE_REF_ROW_HEIGHT = 64
 GUIDE_REF_ROW_PITCH = 74
 GUIDE_MAX_ROWS = 9
 
-MAGNET_SEARCH_PAD = 150          # px of padding around guide when searching for template
-MAGNET_MIN_MATCH_SCORE = 0.40   # cv2.TM_CCOEFF_NORMED threshold for confident match
+MAGNET_SEARCH_PAD = 180          # px of padding around guide when searching for template
+MAGNET_MIN_MATCH_SCORE = 0.42    # cv2.TM_CCOEFF_NORMED threshold for confident match
 
 ACTION_BUTTON_SIZE = 36
 ACTION_ICON_SIZE = 22
@@ -820,9 +821,8 @@ class ControlWindow(QWidget):
         self.magnet_btn = QPushButton("MAG")
         self.magnet_btn.setFixedSize(48, ACTION_BUTTON_SIZE)
         self.magnet_btn.setToolTip(
-            "Magnet is disabled in this build while the native capture crash is isolated."
+            "Find title, tab, and button anchors near the guide and snap position/scale."
         )
-        self.magnet_btn.setEnabled(False)
         self.magnet_btn.clicked.connect(self._toggle_magnet)
 
         self._manual_row = QWidget()
@@ -1110,8 +1110,14 @@ class ControlWindow(QWidget):
             self._save_manual_party_apply()
 
     def _toggle_magnet(self) -> None:
-        _append_debug_log("manual_guide.log", "magnet ignored: disabled")
-        self._set_magnet_active(False)
+        if self._magnet_enabled:
+            return
+        self._set_magnet_active(True)
+        try:
+            ok = self._run_magnet_align()
+            _append_debug_log("manual_guide.log", f"magnet done ok={ok}")
+        finally:
+            self._set_magnet_active(False)
 
     def _set_magnet_active(self, active: bool) -> None:
         self._magnet_enabled = active
@@ -1123,7 +1129,7 @@ class ControlWindow(QWidget):
             self.magnet_btn.setStyleSheet("")
 
     def _run_magnet_align(self) -> bool:
-        """Template-match guide_tab.png on screen to fine-tune guide position and scale."""
+        """Template-match guide anchors on screen to fine-tune position and scale."""
         try:
             import cv2
             import numpy as np
@@ -1148,16 +1154,54 @@ class ControlWindow(QWidget):
         else:
             return False
 
-        tab_path = bundled_resource("resources/guide_tab.png")
-        if tab_path is None:
-            _append_debug_log("manual_guide.log", "magnet failed: guide_tab.png missing")
+        def _first_resource(*names: str) -> Path | None:
+            for name in names:
+                p = bundled_resource(name)
+                if p is not None:
+                    return p
+            return None
+
+        anchors = [
+            {
+                "name": "title",
+                "path": _first_resource("resources/100pctTitle.png", "resources/guide_title.png"),
+                "ref_size": GUIDE_REF_TITLE_SIZE,
+                "offset": (GUIDE_REF_TITLE_LEFT_OFFSET, 0),
+                "weight": 0.9,
+            },
+            {
+                "name": "tab",
+                "path": _first_resource("resources/100pctTab.png", "resources/guide_tab.png"),
+                "ref_size": GUIDE_REF_MARKER_SIZE,
+                "offset": (GUIDE_REF_MARKER_LEFT_IN_WINDOW, GUIDE_REF_MARKER_TOP_IN_WINDOW),
+                "weight": 1.2,
+            },
+            {
+                "name": "button",
+                "path": _first_resource("resources/100pctButton.png", "resources/guide_button.png"),
+                "ref_size": GUIDE_REF_BUTTON_SIZE,
+                "offset": (
+                    GUIDE_REF_WINDOW_SIZE[0] - GUIDE_REF_BUTTON_RIGHT_MARGIN - GUIDE_REF_BUTTON_SIZE[0],
+                    GUIDE_REF_WINDOW_SIZE[1] - GUIDE_REF_BUTTON_BOTTOM_MARGIN - GUIDE_REF_BUTTON_SIZE[1],
+                ),
+                "weight": 1.0,
+            },
+        ]
+        anchors = [a for a in anchors if a["path"] is not None]
+        if not anchors:
+            _append_debug_log("manual_guide.log", "magnet failed: no anchor templates")
             return False
 
         gw = GUIDE_REF_WINDOW_SIZE[0] * current_scale
         gh = GUIDE_REF_WINDOW_SIZE[1] * current_scale
         pad = MAGNET_SEARCH_PAD
 
+        was_visible = bool(guide is not None and guide.isVisible())
         try:
+            if guide is not None and was_visible:
+                guide.hide()
+                QApplication.processEvents()
+                time.sleep(0.08)
             with _mss.mss() as sct:
                 virtual = sct.monitors[0]
                 vx = int(virtual.get("left", 0))
@@ -1181,10 +1225,20 @@ class ControlWindow(QWidget):
                 f"magnet capture failed: {type(exc).__name__}: {exc}",
             )
             return False
+        finally:
+            if guide is not None and was_visible:
+                guide.show()
+                guide.raise_()
+                guide._force_topmost()
+                QApplication.processEvents()
 
+        templates = []
         try:
-            tab_rgba = np.array(Image.open(str(tab_path)).convert("RGBA"))
-            tab_bgr = np.ascontiguousarray(tab_rgba[:, :, :3][:, :, ::-1])
+            for anchor in anchors:
+                rgba = np.array(Image.open(str(anchor["path"])).convert("RGBA"))
+                bgr = np.ascontiguousarray(rgba[:, :, :3][:, :, ::-1])
+                gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
+                templates.append((anchor, gray))
         except Exception as exc:
             _append_debug_log(
                 "manual_guide.log",
@@ -1192,25 +1246,65 @@ class ControlWindow(QWidget):
             )
             return False
 
-        ref_w, ref_h = GUIDE_REF_MARKER_SIZE
         best_score = -1.0
-        best_mx = best_my = 0
+        best_guide_x = gx
+        best_guide_y = gy
         best_scale = current_scale
+        best_hits: list[str] = []
+        search_gray = cv2.cvtColor(search_img, cv2.COLOR_BGR2GRAY)
 
         try:
-            for pct in range(85, 116, 3):
+            for pct in range(80, 121, 2):
                 s = max(0.35, min(1.8, current_scale * pct / 100.0))
-                tw = int(round(ref_w * s))
-                th = int(round(ref_h * s))
-                if tw < 10 or th < 3 or tw >= search_img.shape[1] or th >= search_img.shape[0]:
+                hits = []
+                for anchor, tmpl_gray in templates:
+                    ref_w, ref_h = anchor["ref_size"]
+                    tw = int(round(ref_w * s))
+                    th = int(round(ref_h * s))
+                    if tw < 8 or th < 4 or tw >= search_gray.shape[1] or th >= search_gray.shape[0]:
+                        continue
+                    off_x, off_y = anchor["offset"]
+                    exp_x = gx + off_x * s
+                    exp_y = gy + off_y * s
+                    crop_x0 = max(0, int(round(exp_x - sx - pad)))
+                    crop_y0 = max(0, int(round(exp_y - sy - pad)))
+                    crop_x1 = min(search_gray.shape[1], int(round(exp_x - sx + tw + pad)))
+                    crop_y1 = min(search_gray.shape[0], int(round(exp_y - sy + th + pad)))
+                    if crop_x1 - crop_x0 <= tw or crop_y1 - crop_y0 <= th:
+                        continue
+                    tmpl = cv2.resize(
+                        tmpl_gray,
+                        (tw, th),
+                        interpolation=cv2.INTER_AREA if s < 1 else cv2.INTER_CUBIC,
+                    )
+                    crop = search_gray[crop_y0:crop_y1, crop_x0:crop_x1]
+                    result = cv2.matchTemplate(crop, tmpl, cv2.TM_CCOEFF_NORMED)
+                    _, max_val, _, max_loc = cv2.minMaxLoc(result)
+                    hit_x = sx + crop_x0 + max_loc[0]
+                    hit_y = sy + crop_y0 + max_loc[1]
+                    guide_guess_x = hit_x - off_x * s
+                    guide_guess_y = hit_y - off_y * s
+                    hits.append((anchor["name"], float(max_val), float(anchor["weight"]), guide_guess_x, guide_guess_y))
+                usable = [h for h in hits if h[1] >= MAGNET_MIN_MATCH_SCORE]
+                if not usable:
                     continue
-                tmpl = cv2.resize(tab_bgr, (tw, th), interpolation=cv2.INTER_AREA)
-                result = cv2.matchTemplate(search_img, tmpl, cv2.TM_CCOEFF_NORMED)
-                _, max_val, _, max_loc = cv2.minMaxLoc(result)
-                if max_val > best_score:
-                    best_score = max_val
-                    best_mx, best_my = max_loc
+                weight_sum = sum(score * weight for _, score, weight, _, _ in usable)
+                if weight_sum <= 0:
+                    continue
+                guess_x = sum(x * score * weight for _, score, weight, x, _ in usable) / weight_sum
+                guess_y = sum(y * score * weight for _, score, weight, _, y in usable) / weight_sum
+                consistency = max(
+                    ((x - guess_x) ** 2 + (y - guess_y) ** 2) ** 0.5
+                    for _, _, _, x, y in usable
+                )
+                avg_score = sum(score * weight for _, score, weight, _, _ in usable) / sum(weight for _, _, weight, _, _ in usable)
+                combined = avg_score + min(len(usable), 3) * 0.04 - min(consistency / 160.0, 0.45)
+                if combined > best_score:
+                    best_score = combined
+                    best_guide_x = guess_x
+                    best_guide_y = guess_y
                     best_scale = s
+                    best_hits = [f"{name}:{score:.3f}" for name, score, _, _, _ in usable]
         except Exception as exc:
             _append_debug_log(
                 "manual_guide.log",
@@ -1225,10 +1319,10 @@ class ControlWindow(QWidget):
             )
             return False
 
-        new_marker_x = float(sx + best_mx)
-        new_marker_y = float(sy + best_my)
-        new_guide_x = new_marker_x - GUIDE_REF_MARKER_LEFT_IN_WINDOW * best_scale
-        new_guide_y = new_marker_y - GUIDE_REF_MARKER_TOP_IN_WINDOW * best_scale
+        new_guide_x = float(best_guide_x)
+        new_guide_y = float(best_guide_y)
+        new_marker_x = new_guide_x + GUIDE_REF_MARKER_LEFT_IN_WINDOW * best_scale
+        new_marker_y = new_guide_y + GUIDE_REF_MARKER_TOP_IN_WINDOW * best_scale
 
         if guide is not None:
             guide.guide_x = new_guide_x
@@ -1258,7 +1352,9 @@ class ControlWindow(QWidget):
             "manual_guide.log",
             (
                 f"magnet matched score={best_score:.4f} "
-                f"marker={new_marker_x:.2f},{new_marker_y:.2f} scale={best_scale:.4f}"
+                f"guide={new_guide_x:.2f},{new_guide_y:.2f} "
+                f"marker={new_marker_x:.2f},{new_marker_y:.2f} "
+                f"scale={best_scale:.4f} hits={best_hits}"
             ),
         )
         return True

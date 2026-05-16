@@ -827,6 +827,11 @@ class LiveDemo:
                 if canonical:
                     self._mark_candidate_logged(row_key)
                 continue
+            canonical = self._cached_resolve(self._pa_resolve_cache, row_key)
+            if canonical is not _PENDING:
+                if canonical:
+                    self._mark_candidate_logged(row_key)
+                continue
             if row_key in self._pa_candidate_pending:
                 continue
             if self._candidate_logged_recent(row_key):
