@@ -1002,7 +1002,7 @@ class LiveDemo:
         self._score_executor.shutdown(wait=False)
 
 
-if __name__ == "__main__":
+def main() -> int:
     import argparse
     from PIL import Image
 
@@ -1032,7 +1032,7 @@ if __name__ == "__main__":
             line = f"{hwnd}: {title}"
             print(line.encode(sys.stdout.encoding or "utf-8",
                               errors="backslashreplace").decode(sys.stdout.encoding or "utf-8"))
-        raise SystemExit(0)
+        return 0
     if args.test_image:
         img = np.array(Image.open(args.test_image).convert("RGB"))
         det = detect_party_apply(img)
@@ -1046,7 +1046,7 @@ if __name__ == "__main__":
                 f"row={row.index} fame={row.fame} fame_raw={row.fame_text!r} "
                 f"class={row.class_raw!r} name={row.name_raw!r}"
             )
-        raise SystemExit(0 if det.found else 1)
+        return 0 if det.found else 1
     print(f"[startup] UI Scale setting={args.ui_scale:g}% "
           f"(OCR-only party_apply mode)")
     LiveDemo(capture_interval_ms=args.interval,
@@ -1057,3 +1057,8 @@ if __name__ == "__main__":
              neople_api_key=args.neople_api_key,
              mode=args.mode,
              test_image_path=args.test_image).run()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
