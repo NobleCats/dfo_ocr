@@ -71,11 +71,12 @@ DEFAULT_WINDOW_TITLE = "Dungeon Fighter Online"
 SETTINGS_FILE = "settings.json"
 
 GUIDE_REF_MARKER_SIZE = (1050, 26)
-GUIDE_REF_MARKER_LEFT_IN_WINDOW = 13
-GUIDE_REF_MARKER_TOP_IN_WINDOW = 108
-GUIDE_REF_WINDOW_SIZE = (1091, 802)
-GUIDE_REF_SLOT_LEFT_IN_WINDOW = 15
-GUIDE_REF_FIRST_ROW_TOP_IN_WINDOW = 144
+GUIDE_REF_MARKER_LEFT_IN_WINDOW = 16
+GUIDE_REF_MARKER_TOP_IN_WINDOW = 110
+GUIDE_REF_WINDOW_SIZE = (1096, 896)
+GUIDE_REF_TITLE_BOTTOM_Y = 32
+GUIDE_REF_SLOT_LEFT_IN_WINDOW = 18
+GUIDE_REF_FIRST_ROW_TOP_IN_WINDOW = 147
 GUIDE_REF_ROW_WIDTH = 1042
 GUIDE_REF_ROW_HEIGHT = 64
 GUIDE_REF_ROW_PITCH = 74
@@ -478,6 +479,8 @@ class ManualGuideOverlay(QWidget):
         guide = self._guide_rect()
         marker = self._marker_rect()
         painter.drawRect(guide)
+        title_y = guide.top() + int(round(GUIDE_REF_TITLE_BOTTOM_Y * self.scale))
+        painter.drawLine(guide.left(), title_y, guide.right(), title_y)
         painter.drawRect(marker)
 
         s = self.scale
