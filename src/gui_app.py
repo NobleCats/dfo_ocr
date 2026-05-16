@@ -7,10 +7,11 @@ import sys
 import base64
 import ctypes
 from ctypes import wintypes
+from datetime import datetime
 import json
 from pathlib import Path
 
-from PyQt6.QtCore import QPoint, QRect, QSize, Qt, QUrl, pyqtSignal
+from PyQt6.QtCore import QPoint, QRect, QRectF, QSize, Qt, QUrl, pyqtSignal
 from PyQt6.QtGui import (
     QColor,
     QDesktopServices,
@@ -168,6 +169,17 @@ def save_settings(data: dict) -> None:
         pass
 
 
+def _append_debug_log(filename: str, message: str) -> None:
+    try:
+        path = _settings_path().parent / filename
+        path.parent.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+        with path.open("a", encoding="utf-8") as f:
+            f.write(f"{stamp} {message}\n")
+    except Exception:
+        pass
+
+
 def _protect_secret(value: str) -> str:
     raw = value.encode("utf-8")
     if sys.platform != "win32":
@@ -288,6 +300,7 @@ class ManualGuideOverlay(QWidget):
         self._dragging = False
         self._hover_handle = False
         self._last_global = QPoint()
+        self._screen_maps: list[tuple[QRect, QRectF, float]] = []
         self._refresh_geometry()
 
     def _refresh_geometry(self) -> None:
@@ -298,6 +311,84 @@ class ManualGuideOverlay(QWidget):
                 desktop = desktop.united(screen.geometry())
         if not desktop.isNull():
             self.setGeometry(desktop)
+        self._screen_maps = self._build_screen_maps()
+        self.update()
+
+    def _build_screen_maps(self) -> list[tuple[QRect, QRectF, float]]:
+        app = QApplication.instance()
+        if app is None:
+            return []
+        screens = app.screens()
+        physical_screens = self._physical_screens()
+        maps: list[tuple[QRect, QRectF, float]] = []
+        used: set[int] = set()
+        for idx, screen in enumerate(screens):
+            logical = screen.geometry()
+            dpr = max(float(screen.devicePixelRatio()), 1.0)
+            physical_idx = idx if idx < len(physical_screens) and idx not in used else None
+            if physical_idx is None:
+                expected_w = logical.width() * dpr
+                expected_h = logical.height() * dpr
+                best_idx = None
+                best_delta = float("inf")
+                for candidate_idx, physical in enumerate(physical_screens):
+                    if candidate_idx in used:
+                        continue
+                    delta = abs(physical.width() - expected_w) + abs(physical.height() - expected_h)
+                    if delta < best_delta:
+                        best_idx = candidate_idx
+                        best_delta = delta
+                if best_idx is not None and best_delta <= 4:
+                    physical_idx = best_idx
+            if physical_idx is not None and physical_idx < len(physical_screens):
+                used.add(physical_idx)
+                physical = physical_screens[physical_idx]
+            else:
+                physical = QRectF(
+                    logical.x() * dpr,
+                    logical.y() * dpr,
+                    logical.width() * dpr,
+                    logical.height() * dpr,
+                )
+            maps.append((logical, physical, dpr))
+        return maps
+
+    def _physical_screens(self) -> list[QRectF]:
+        try:
+            import win32api
+
+            out: list[QRectF] = []
+            for monitor, _dc, _rect in win32api.EnumDisplayMonitors():
+                info = win32api.GetMonitorInfo(monitor)
+                left, top, right, bottom = info["Monitor"]
+                out.append(QRectF(left, top, right - left, bottom - top))
+            return out
+        except Exception:
+            return []
+
+    def _force_topmost(self) -> None:
+        if sys.platform != "win32":
+            return
+        try:
+            hwnd = int(self.winId())
+            user32 = ctypes.WinDLL("user32", use_last_error=True)
+            user32.SetWindowPos(
+                wintypes.HWND(hwnd),
+                wintypes.HWND(-1),  # HWND_TOPMOST
+                0,
+                0,
+                0,
+                0,
+                0x0001 | 0x0002 | 0x0010 | 0x0040,  # NOSIZE | NOMOVE | NOACTIVATE | SHOWWINDOW
+            )
+        except Exception:
+            pass
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        self._refresh_geometry()
+        self._force_topmost()
+        self._log_geometry("show")
 
     def set_scale(self, scale: float) -> None:
         self.scale = max(0.35, min(1.8, float(scale)))
@@ -314,22 +405,29 @@ class ManualGuideOverlay(QWidget):
         return max(float(screen.devicePixelRatio()) if screen is not None else 1.0, 1.0)
 
     def _physical_to_local(self, x: float, y: float) -> QPoint:
-        app = QApplication.instance()
-        if app is not None:
-            for screen in app.screens():
-                geo = screen.geometry()
-                dpr = self._screen_dpr_at(geo.center())
-                px0 = geo.x() * dpr
-                py0 = geo.y() * dpr
-                px1 = px0 + geo.width() * dpr
-                py1 = py0 + geo.height() * dpr
-                if px0 <= x <= px1 and py0 <= y <= py1:
-                    gx = geo.x() + (x - px0) / dpr
-                    gy = geo.y() + (y - py0) / dpr
-                    origin = self.mapToGlobal(QPoint(0, 0))
-                    return QPoint(int(round(gx - origin.x())), int(round(gy - origin.y())))
+        for logical, physical, dpr in self._screen_maps:
+            if physical.contains(x, y):
+                gx = logical.x() + (x - physical.x()) / dpr
+                gy = logical.y() + (y - physical.y()) / dpr
+                origin = self.mapToGlobal(QPoint(0, 0))
+                return QPoint(int(round(gx - origin.x())), int(round(gy - origin.y())))
         origin = self.mapToGlobal(QPoint(0, 0))
         return QPoint(int(round(x - origin.x())), int(round(y - origin.y())))
+
+    def _log_geometry(self, reason: str) -> None:
+        guide = self._guide_rect()
+        marker = self._marker_rect()
+        handle = self._handle_rect()
+        _append_debug_log(
+            "manual_guide.log",
+            (
+                f"{reason} overlay={self.geometry().getRect()} "
+                f"global_origin={self.mapToGlobal(QPoint(0, 0)).x()},{self.mapToGlobal(QPoint(0, 0)).y()} "
+                f"marker_physical={self.marker_x:.2f},{self.marker_y:.2f} scale={self.scale:.4f} "
+                f"guide={guide.getRect()} marker={marker.getRect()} handle={handle.getRect()} "
+                f"maps={[ (m[0].getRect(), (m[1].x(), m[1].y(), m[1].width(), m[1].height()), m[2]) for m in self._screen_maps ]}"
+            ),
+        )
 
     def _guide_rect(self) -> QRect:
         s = self.scale
@@ -361,8 +459,8 @@ class ManualGuideOverlay(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         active = self._hover_handle or self._dragging
-        color = QColor(0, 154, 218, 255 if active else 220)
-        width = 4 if active else 3
+        color = QColor(255, 0, 0, 255) if active else QColor(0, 190, 255, 255)
+        width = 6 if active else 4
         painter.setPen(QPen(color, width))
         painter.setBrush(Qt.BrushStyle.NoBrush)
 
@@ -378,9 +476,9 @@ class ManualGuideOverlay(QWidget):
             painter.drawLine(x0, y, x1, y)
 
         handle = self._handle_rect()
-        handle_color = QColor(0, 154, 218, 255 if active else 240)
-        painter.setPen(QPen(handle_color, 3 if active else 2))
-        painter.setBrush(QColor(0, 154, 218, 140 if active else 120))
+        handle_color = QColor(255, 255, 0, 255)
+        painter.setPen(QPen(handle_color, 4 if active else 3))
+        painter.setBrush(QColor(255, 255, 0, 210 if active else 170))
         painter.drawRect(handle)
         painter.end()
 
@@ -399,6 +497,7 @@ class ManualGuideOverlay(QWidget):
             self._last_global = current
             self.update()
             self.moved.emit()
+            self._log_geometry("move")
 
     def mousePressEvent(self, event) -> None:
         if event.button() == Qt.MouseButton.LeftButton and self._handle_rect().contains(event.position().toPoint()):
