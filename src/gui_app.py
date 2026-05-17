@@ -89,7 +89,10 @@ GUIDE_MAX_ROWS = 9
 
 MAGNET_SEARCH_PAD = 120          # px of padding around guide when searching for template
 MAGNET_MIN_MATCH_SCORE = 0.42    # cv2.TM_CCOEFF_NORMED threshold for confident match
-MAGNET_LIVE_INTERVAL_MS = 450
+MAGNET_LIVE_SEARCH_PAD = 70
+MAGNET_LIVE_INTERVAL_MS = 140
+MAGNET_LIVE_DEADBAND_PX = 3.0
+MAGNET_LIVE_MAX_CONSISTENCY_PX = 10
 MAGNET_SCALE_SEARCH_RADIUS_PCT = 6
 MAGNET_MAX_SCALE_DELTA = 0.035
 MAGNET_MAX_CONSISTENCY_PX = 45
@@ -1244,6 +1247,10 @@ class ControlWindow(QWidget):
             },
         ]
         anchors = [a for a in anchors if a["path"] is not None]
+        if live:
+            top_anchors = [a for a in anchors if a["name"] in {"title", "tab"}]
+            if top_anchors:
+                anchors = top_anchors
         if not anchors:
             _append_debug_log("manual_guide.log", "magnet failed: no anchor templates")
             return False
@@ -1253,9 +1260,20 @@ class ControlWindow(QWidget):
                 "magnet step=anchors " + ",".join(str(a["name"]) for a in anchors),
             )
 
-        gw = GUIDE_REF_WINDOW_SIZE[0] * current_scale
-        gh = GUIDE_REF_WINDOW_SIZE[1] * current_scale
-        pad = MAGNET_SEARCH_PAD
+        if live:
+            gw = max(
+                (anchor["offset"][0] + anchor["ref_size"][0]) * current_scale
+                for anchor in anchors
+            )
+            gh = max(
+                (anchor["offset"][1] + anchor["ref_size"][1]) * current_scale
+                for anchor in anchors
+            )
+            pad = MAGNET_LIVE_SEARCH_PAD
+        else:
+            gw = GUIDE_REF_WINDOW_SIZE[0] * current_scale
+            gh = GUIDE_REF_WINDOW_SIZE[1] * current_scale
+            pad = MAGNET_SEARCH_PAD
 
         try:
             with _mss.mss() as sct:
@@ -1362,7 +1380,10 @@ class ControlWindow(QWidget):
                     ((x - guess_x) ** 2 + (y - guess_y) ** 2) ** 0.5
                     for _, _, _, x, y in usable
                 )
-                if len(usable) >= 2 and consistency > MAGNET_MAX_CONSISTENCY_PX * max(0.75, s):
+                max_consistency = (
+                    MAGNET_LIVE_MAX_CONSISTENCY_PX if live else MAGNET_MAX_CONSISTENCY_PX
+                )
+                if len(usable) >= 2 and consistency > max_consistency * max(0.75, s):
                     continue
                 avg_score = sum(score * weight for _, score, weight, _, _ in usable) / sum(weight for _, _, weight, _, _ in usable)
                 scale_penalty = abs(s - current_scale) * 1.7 if allow_scale else 0.0
@@ -1393,6 +1414,8 @@ class ControlWindow(QWidget):
                     f"magnet no match: score={best_score:.4f}",
                 )
             return False
+        if live and len(templates) >= 2 and best_hit_count < 2:
+            return False
 
         if not allow_scale or best_hit_count < 2:
             best_scale = current_scale
@@ -1407,19 +1430,21 @@ class ControlWindow(QWidget):
         new_marker_y = new_guide_y + GUIDE_REF_MARKER_TOP_IN_WINDOW * best_scale
 
         if guide is not None:
+            dx = new_guide_x - float(guide.guide_x)
+            dy = new_guide_y - float(guide.guide_y)
             if (
                 live
-                and abs(float(guide.guide_x) - new_guide_x) < 0.5
-                and abs(float(guide.guide_y) - new_guide_y) < 0.5
+                and ((dx * dx + dy * dy) ** 0.5) < MAGNET_LIVE_DEADBAND_PX
                 and abs(float(guide.scale) - best_scale) < 0.0005
             ):
                 return True
-            guide.guide_x = new_guide_x
-            guide.guide_y = new_guide_y
+            guide.guide_x = round(new_guide_x) if live else new_guide_x
+            guide.guide_y = round(new_guide_y) if live else new_guide_y
             guide.scale = best_scale
             guide.update()
             guide.moved.emit()
-            guide.scale_changed.emit(int(round(best_scale * 100)))
+            if not live:
+                guide.scale_changed.emit(int(round(best_scale * 100)))
         else:
             s = best_scale
             self.manual_party_apply = {
