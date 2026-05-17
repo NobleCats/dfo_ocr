@@ -61,7 +61,7 @@ COLD_SCAN_MIN_INTERVAL_S = 0.0
 # client's own in-flight timeout to avoid double-scheduling under normal load.
 PENDING_TTL_S = 15.0
 LOCAL_CACHE_TTL_S = 180.0
-PARTY_APPLY_HINT_GRACE_MISSES = 75
+PARTY_APPLY_HINT_GRACE_S = 120.0
 
 # Minimum class-OCR confidence to bother hitting the Neople API. Below this,
 # the OCR output is so garbled that match_jobs lands on the wrong class
@@ -239,7 +239,7 @@ class LiveDemo:
         self._monitor_locked = monitor_index is not None or window_title is not None
         self._rescan_countdown = 0   # frames until next monitor rescan
         self._last_party_apply_hint: PartyApplyDetection | None = None
-        self._party_apply_hint_misses: int = 0
+        self._last_party_apply_hint_seen_at: float = 0.0
         self._last_pa_cold_scan_t: float = 0.0
         # Sticky once learned. After the first successful detection we
         # narrow cold scans to a band around this scale, dropping the
@@ -805,10 +805,12 @@ class LiveDemo:
             self._last_state_change_t = now
         if det.found:
             self._last_party_apply_hint = det
-            self._party_apply_hint_misses = 0
+            self._last_party_apply_hint_seen_at = time.perf_counter()
         else:
-            self._party_apply_hint_misses += 1
-            if self._party_apply_hint_misses > PARTY_APPLY_HINT_GRACE_MISSES:
+            if (
+                self._last_party_apply_hint is not None
+                and (time.perf_counter() - self._last_party_apply_hint_seen_at) > PARTY_APPLY_HINT_GRACE_S
+            ):
                 self._last_party_apply_hint = None
 
         if not det.found:
