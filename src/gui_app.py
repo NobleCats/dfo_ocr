@@ -42,7 +42,7 @@ from resources import resource_path  # noqa: E402
 from qt_dpi import configure_qt_high_dpi  # noqa: E402
 
 APP_NAME = "DFOGANG Raid Helper"
-APP_VERSION = "v1.0beta"
+APP_VERSION = "v1.1beta"
 
 try:
     from build_info import BUILD_HASH as _BUILD_HASH  # noqa: E402

@@ -36,6 +36,9 @@ from qt_dpi import configure_qt_high_dpi  # noqa: E402
 # UI scale at which the party_apply geometry was captured. Detection's `scale`
 # is relative to this: capture-at-69%-setting → scale=1.0.
 PARTY_APPLY_REF_UI_PCT = 100.0
+AUTO_GUIDE_REF_MARKER_LEFT_IN_WINDOW = 16
+AUTO_GUIDE_REF_MARKER_TOP_IN_WINDOW = 110
+AUTO_GUIDE_REF_WINDOW_SIZE = (1096, 896)
 
 
 def _norm_for_cache(s: str) -> str:
@@ -209,6 +212,8 @@ class LiveDemo:
         self.ui_scale = ui_scale
         self.mode = mode
         self.manual_party_apply = manual_party_apply or None
+        self._auto_party_apply_guide: dict | None = None
+        self._auto_guide_empty_frames: int = 0
         self.test_image_path = test_image_path
         if mode != "party_apply":
             raise ValueError(f"unknown mode {mode!r}")
@@ -522,7 +527,7 @@ class LiveDemo:
             return
 
     def _has_manual_guide_capture(self) -> bool:
-        cfg = self.manual_party_apply
+        cfg = self._active_party_apply_guide()
         return bool(
             cfg
             and cfg.get("enabled", True)
@@ -531,6 +536,9 @@ class LiveDemo:
             and "guide_w" in cfg
             and "guide_h" in cfg
         )
+
+    def _active_party_apply_guide(self) -> dict | None:
+        return self.manual_party_apply or self._auto_party_apply_guide
 
     def _process_frame_party_apply(
         self,
@@ -691,6 +699,7 @@ class LiveDemo:
             "mode": "party_apply",
             "det": det,
             "rows": rows,
+            "auto_source": manual_det is None,
             "origin_xy": result_origin,
             "elapsed_ms": elapsed_ms,
             "cap_ms": cap_ms,
@@ -698,7 +707,7 @@ class LiveDemo:
         })
 
     def _manual_party_apply_detection(self, frame: np.ndarray | None) -> PartyApplyDetection | None:
-        cfg = self.manual_party_apply
+        cfg = self._active_party_apply_guide()
         if not cfg or not cfg.get("enabled", True):
             return None
         try:
@@ -857,11 +866,20 @@ class LiveDemo:
             self._frame_count += 1
             return
         if not has_rows:
+            if result.get("auto_source") is not True and self._auto_party_apply_guide is not None:
+                self._auto_guide_empty_frames += 1
+                if self._auto_guide_empty_frames >= 30:
+                    self._log.info("auto guide dropped after consecutive empty guide frames")
+                    self._auto_party_apply_guide = None
+                    self._auto_guide_empty_frames = 0
             self.overlay.set_annotations([])
             self._last_pa_result = None
             self._frame_count += 1
             return
+        self._auto_guide_empty_frames = 0
         self._monitor_locked = True
+        if result.get("auto_source") is True and self.manual_party_apply is None:
+            self._update_auto_party_apply_guide(det, result["origin_xy"])
         # Schedule per-row Neople resolve (single API call) immediately on
         # first sight. Successful resolves are cached forever; failed ones
         # are NOT cached so the next tick retries.
@@ -902,6 +920,37 @@ class LiveDemo:
             det, rows, result["origin_xy"]))
         self._frame_count += 1
         return
+
+    def _update_auto_party_apply_guide(
+        self,
+        det: PartyApplyDetection,
+        origin_xy: tuple[int, int],
+    ) -> None:
+        origin_x, origin_y = origin_xy
+        marker_x = origin_x + int(det.marker_xywh[0])
+        marker_y = origin_y + int(det.marker_xywh[1])
+        s = float(det.scale)
+        guide_x = marker_x - AUTO_GUIDE_REF_MARKER_LEFT_IN_WINDOW * s
+        guide_y = marker_y - AUTO_GUIDE_REF_MARKER_TOP_IN_WINDOW * s
+        guide = {
+            "enabled": True,
+            "guide_x_abs": round(guide_x, 2),
+            "guide_y_abs": round(guide_y, 2),
+            "guide_w": round(AUTO_GUIDE_REF_WINDOW_SIZE[0] * s, 2),
+            "guide_h": round(AUTO_GUIDE_REF_WINDOW_SIZE[1] * s, 2),
+            "marker_x_abs": round(marker_x, 2),
+            "marker_y_abs": round(marker_y, 2),
+            "scale": round(s, 4),
+            "auto": True,
+        }
+        previous = self._auto_party_apply_guide
+        self._auto_party_apply_guide = guide
+        if previous is None:
+            self._log.info(
+                "auto guide acquired guide=(%.1f,%.1f %.1fx%.1f) marker=(%d,%d) scale=%.3f",
+                guide["guide_x_abs"], guide["guide_y_abs"], guide["guide_w"], guide["guide_h"],
+                marker_x, marker_y, s,
+            )
 
     def _pa_row_key(self, row: PartyApplyRow) -> tuple | None:
         """Cache key for a row's API state. None means the row is
