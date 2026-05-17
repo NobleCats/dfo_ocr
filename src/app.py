@@ -581,10 +581,7 @@ class LiveDemo:
                 det = detect_party_apply(frame, hint=self._last_party_apply_hint,
                                          near_scale=near)
             det_ms = (time.perf_counter() - t_det0) * 1000
-            if det.found:
-                self._last_pa_scale = det.scale
-                self._pa_narrow_misses = 0
-            elif manual_det is None and cold and scale_known:
+            if not det.found and manual_det is None and cold and scale_known:
                 self._pa_narrow_misses += 1
             elif manual_det is None and cold and not scale_known:
                 # Full sweep ran (no cached scale yet). Keep counter at 0
@@ -616,6 +613,12 @@ class LiveDemo:
                              else frame)
                 rows = recognize_party_apply(ocr_frame, det)
                 recog_ms = (time.perf_counter() - t_recog0) * 1000
+                if rows:
+                    self._last_pa_scale = det.scale
+                    self._pa_narrow_misses = 0
+                elif manual_det is None and self._frame_count % 25 == 0:
+                    self._log.info(
+                        "party_apply marker found but no rows; preserving previous hint")
             else:
                 rows = []
         except CaptureUnavailable as e:
@@ -794,19 +797,25 @@ class LiveDemo:
         rows: list[PartyApplyRow] = result["rows"]
         elapsed_ms = result["elapsed_ms"]
 
+        has_rows = bool(rows)
+        effective_found = det.found and has_rows
+
         # Track state transitions for telemetry parity with raid_party path.
-        if det.found != self._last_found:
+        # A marker-only hit without any applicant rows is intentionally weak:
+        # after ALT+TAB/occlusion it can otherwise overwrite the last good
+        # guide hint and keep the fast path stuck on an empty region.
+        if effective_found != self._last_found:
             now = time.perf_counter()
             dt = now - self._last_state_change_t
             self._log.info("party_apply STATE %s -> %s after %.2fs",
                            "found" if self._last_found else "lost",
-                           "found" if det.found else "lost", dt)
-            self._last_found = det.found
+                           "found" if effective_found else "lost", dt)
+            self._last_found = effective_found
             self._last_state_change_t = now
-        if det.found:
+        if effective_found:
             self._last_party_apply_hint = det
             self._last_party_apply_hint_seen_at = time.perf_counter()
-        else:
+        elif not det.found:
             if (
                 self._last_party_apply_hint is not None
                 and (time.perf_counter() - self._last_party_apply_hint_seen_at) > PARTY_APPLY_HINT_GRACE_S
@@ -814,6 +823,11 @@ class LiveDemo:
                 self._last_party_apply_hint = None
 
         if not det.found:
+            self.overlay.set_annotations([])
+            self._last_pa_result = None
+            self._frame_count += 1
+            return
+        if not has_rows:
             self.overlay.set_annotations([])
             self._last_pa_result = None
             self._frame_count += 1
