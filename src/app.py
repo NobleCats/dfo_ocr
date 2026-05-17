@@ -62,6 +62,9 @@ COLD_SCAN_MIN_INTERVAL_S = 0.0
 PENDING_TTL_S = 15.0
 LOCAL_CACHE_TTL_S = 180.0
 PARTY_APPLY_HINT_GRACE_S = 120.0
+PARTY_APPLY_EMPTY_FOUND_RESET_FRAMES = 3
+PARTY_APPLY_EMPTY_FOUND_LOW_SCORE = 0.55
+PARTY_APPLY_EMPTY_FOUND_SCALE_DELTA = 0.18
 
 # Minimum class-OCR confidence to bother hitting the Neople API. Below this,
 # the OCR output is so garbled that match_jobs lands on the wrong class
@@ -241,6 +244,7 @@ class LiveDemo:
         self._last_party_apply_hint: PartyApplyDetection | None = None
         self._last_party_apply_hint_seen_at: float = 0.0
         self._last_pa_cold_scan_t: float = 0.0
+        self._pa_empty_found_count: int = 0
         # Sticky once learned. After the first successful detection we
         # narrow cold scans to a band around this scale, dropping the
         # warm-restart latency (party_apply window closed → reopened) from
@@ -614,12 +618,37 @@ class LiveDemo:
                 rows = recognize_party_apply(ocr_frame, det)
                 recog_ms = (time.perf_counter() - t_recog0) * 1000
                 if rows:
+                    self._pa_empty_found_count = 0
                     self._last_pa_scale = det.scale
                     self._pa_narrow_misses = 0
-                elif manual_det is None and self._frame_count % 25 == 0:
-                    self._log.info(
-                        "party_apply marker found but no rows; preserving previous hint")
+                elif manual_det is None:
+                    self._pa_empty_found_count += 1
+                    scale_delta = (
+                        abs(det.scale - self._last_pa_scale)
+                        if self._last_pa_scale is not None else 0.0
+                    )
+                    suspicious_empty = (
+                        det.score < PARTY_APPLY_EMPTY_FOUND_LOW_SCORE
+                        or scale_delta > PARTY_APPLY_EMPTY_FOUND_SCALE_DELTA
+                        or self._pa_empty_found_count >= PARTY_APPLY_EMPTY_FOUND_RESET_FRAMES
+                    )
+                    if suspicious_empty:
+                        self._log.info(
+                            "party_apply empty detection rejected  score=%.2f scale=%.2f "
+                            "last_scale=%s empty_count=%d",
+                            det.score, det.scale,
+                            f"{self._last_pa_scale:.2f}" if self._last_pa_scale is not None else "none",
+                            self._pa_empty_found_count,
+                        )
+                        det.found = False
+                        if self._pa_empty_found_count >= PARTY_APPLY_EMPTY_FOUND_RESET_FRAMES:
+                            self._last_party_apply_hint = None
+                            self._pa_narrow_misses = 2
+                    elif self._frame_count % 25 == 0:
+                        self._log.info(
+                            "party_apply marker found but no rows; preserving previous hint")
             else:
+                self._pa_empty_found_count = 0
                 rows = []
         except CaptureUnavailable as e:
             self._log.warning("capture unavailable: %s", e)
