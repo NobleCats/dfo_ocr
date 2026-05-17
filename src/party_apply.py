@@ -1545,10 +1545,33 @@ def _strip_lv_prefix(text: str) -> str:
     s = text.lstrip()
     digit_class = r"[\dIlLiSsOoBb]"
 
-    # Pattern 1: recognisable Lv/LV variants.
-    m = re.search(r"[Ll][vVuUyY][.,;:]?\s*" + digit_class + r"{1,4}\s*", s[:16])
+    # Pattern 1: recognisable Lv/LV variants, including OCR dropping the
+    # leading L ("v. 115 name"). Require a plausible level to avoid stripping
+    # ordinary names that happen to start with v.
+    m = re.match(
+        r"^[\W_]*(?:[Ll]?\s*)?[vVuUyY][.,;:]?\s*(" + digit_class + r"{1,4})(?:\s+|(?=\D))",
+        s,
+    )
     if m:
-        return s[m.end():]
+        level_text = (
+            m.group(1)
+            .translate(str.maketrans({"I": "1", "l": "1", "L": "1", "S": "5", "s": "5", "O": "0", "o": "0", "B": "8"}))
+        )
+        try:
+            if 1 <= int(level_text) <= 125:
+                return s[m.end():].lstrip()
+        except ValueError:
+            pass
+
+    # Pattern 1b: "Lv" itself was OCR'd as a single punctuation/short token,
+    # e.g. ". 115 name" or ": 115 name".
+    m = re.match(r"^[\W_]{1,4}\s*(\d{1,3})(?:\s+|(?=\D))", s)
+    if m:
+        try:
+            if 1 <= int(m.group(1)) <= 125:
+                return s[m.end():].lstrip()
+        except ValueError:
+            pass
 
     # Pattern 2: garbled Lv prefix — short token + whitespace + level digits +
     # whitespace.  Handles "u 115 name", "iv 115 name", "1v 115 name".
@@ -1556,14 +1579,14 @@ def _strip_lv_prefix(text: str) -> str:
     if m:
         try:
             if 1 <= int(m.group(1)) <= 125:
-                return s[m.end():]
+                return s[m.end():].lstrip()
         except ValueError:
             pass
 
     # Pattern 3: purely digit prefix when Lv. was entirely dropped by OCR.
     m = re.match(r"^[\W_]*" + digit_class + r"{1,3}\s*", s)
     if m:
-        return s[m.end():]
+        return s[m.end():].lstrip()
 
     return s
 
