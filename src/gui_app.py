@@ -124,6 +124,11 @@ def bundled_resource(filename: str) -> Path | None:
         return None
 
 
+def log_dir() -> Path:
+    base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
+    return Path(base) / "DFOGANG_RaidHelper"
+
+
 def acquire_single_instance() -> bool:
     """Return False when another Raid Helper instance is already running."""
     global _INSTANCE_MUTEX_HANDLE
@@ -761,8 +766,13 @@ class ControlWindow(QWidget):
         self.close_btn = TitleButton("X")
         self.min_btn.mousePressEvent = lambda event: self.showMinimized()
         self.close_btn.mousePressEvent = lambda event: self.close()
+        self.log_btn = QPushButton("LOG")
+        self.log_btn.setFixedSize(48, ACTION_BUTTON_SIZE)
+        self.log_btn.setToolTip("Open the folder containing debug logs.")
+        self.log_btn.clicked.connect(lambda _: self._open_log_folder())
 
         title_row.addLayout(title_box, 1)
+        title_row.addWidget(self.log_btn)
         title_row.addWidget(self.min_btn)
         title_row.addWidget(self.close_btn)
         root.addLayout(title_row)
@@ -1597,6 +1607,11 @@ class ControlWindow(QWidget):
 
     def _open_api_key_page(self) -> None:
         QDesktopServices.openUrl(QUrl(NEOPLE_KEY_URL))
+
+    def _open_log_folder(self) -> None:
+        path = log_dir()
+        path.mkdir(parents=True, exist_ok=True)
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
 
     def _overlay_unavailable(self) -> None:
         if self.demo is not None:
