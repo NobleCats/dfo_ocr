@@ -14,6 +14,7 @@ Those must be searched independently and merged before name filtering.
 
 from __future__ import annotations
 
+import concurrent.futures
 import logging
 import re
 import threading
@@ -575,6 +576,24 @@ class NeopleClient:
         all_rows: list[FameCharacter] = []
         source_parts: list[str] = []
 
+        if len(jobs) > 1:
+            def _search(job: JobInfo) -> tuple[str, list[FameCharacter]]:
+                rows = self.search_by_fame(
+                    job_id=job.job_id,
+                    job_grow_id=job.grow_id,
+                    fame=fame,
+                    window=window,
+                )
+                return f"{job.job_name}/{job.grow_name} +/-{window}", rows
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=min(4, len(jobs))) as pool:
+                for src, rows in pool.map(_search, jobs):
+                    _logger.debug("  searched %s -> %d rows", src, len(rows))
+                    source_parts.append(src)
+                    all_rows.extend(rows)
+
+            return _dedupe_characters(all_rows), " | ".join(source_parts)
+
         for job in jobs:
             rows = self.search_by_fame(
                 job_id=job.job_id,
@@ -598,6 +617,24 @@ class NeopleClient:
     ) -> tuple[list[FameCharacter], str]:
         all_rows: list[FameCharacter] = []
         source_parts: list[str] = []
+
+        if len(jobs) > 1:
+            def _search(job: JobInfo) -> tuple[str, list[FameCharacter]]:
+                rows = self._search_by_fame_range(
+                    job_id=job.job_id,
+                    job_grow_id=job.grow_id,
+                    fame_min=fame_min,
+                    fame_max=fame_max,
+                )
+                return f"{job.job_name}/{job.grow_name} [{fame_min}..{fame_max}]", rows
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=min(4, len(jobs))) as pool:
+                for src, rows in pool.map(_search, jobs):
+                    _logger.debug("  searched %s -> %d rows", src, len(rows))
+                    source_parts.append(src)
+                    all_rows.extend(rows)
+
+            return _dedupe_characters(all_rows), " | ".join(source_parts)
 
         for job in jobs:
             rows = self._search_by_fame_range(

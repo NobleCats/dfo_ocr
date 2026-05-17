@@ -79,7 +79,7 @@ GUIDE_REF_TITLE_SIZE = (1092, 32)     # guide_title.png dimensions
 GUIDE_REF_BUTTON_SIZE = (276, 40)     # guide_button.png dimensions
 GUIDE_REF_BUTTON_RIGHT_MARGIN = 20    # px from guide right edge
 GUIDE_REF_BUTTON_BOTTOM_MARGIN = 20   # px from guide bottom edge
-GUIDE_OVERLAY_IMAGE_ALPHA = 0.10      # 10% opacity for reference images
+GUIDE_OVERLAY_IMAGE_ALPHA = 0.35      # opacity for title/tab/button alignment aids
 GUIDE_REF_SLOT_LEFT_IN_WINDOW = 18
 GUIDE_REF_FIRST_ROW_TOP_IN_WINDOW = 147
 GUIDE_REF_ROW_WIDTH = 1042
@@ -89,9 +89,10 @@ GUIDE_MAX_ROWS = 9
 
 MAGNET_SEARCH_PAD = 120          # px of padding around guide when searching for template
 MAGNET_MIN_MATCH_SCORE = 0.42    # cv2.TM_CCOEFF_NORMED threshold for confident match
-MAGNET_LIVE_SEARCH_PAD = 70
-MAGNET_LIVE_INTERVAL_MS = 140
-MAGNET_LIVE_DEADBAND_PX = 3.0
+MAGNET_LIVE_SEARCH_PAD = 48
+MAGNET_LIVE_REACQUIRE_PAD = 160
+MAGNET_LIVE_INTERVAL_MS = 80
+MAGNET_LIVE_DEADBAND_PX = 2.0
 MAGNET_LIVE_MAX_CONSISTENCY_PX = 10
 MAGNET_SCALE_SEARCH_RADIUS_PCT = 6
 MAGNET_MAX_SCALE_DELTA = 0.035
@@ -545,7 +546,7 @@ class ManualGuideOverlay(QWidget):
             painter.end()
             return
 
-        # Draw reference images at 10% opacity as alignment aids.
+        # Draw reference images as alignment aids.
         painter.setOpacity(GUIDE_OVERLAY_IMAGE_ALPHA)
         if not self._title_pixmap.isNull():
             tw = int(round(GUIDE_REF_TITLE_SIZE[0] * s))
@@ -584,7 +585,7 @@ class ManualGuideOverlay(QWidget):
         resize_active = not self._running and (self._hover_resize or self._resizing)
         any_active = drag_active or resize_active
         outline_color = QColor(255, 0, 0, 255) if any_active else QColor(0, 190, 255, 255)
-        painter.setPen(QPen(outline_color, 6 if any_active else 4))
+        painter.setPen(QPen(outline_color, 4 if any_active else 2))
         painter.setBrush(Qt.BrushStyle.NoBrush)
 
         painter.drawRect(guide)
@@ -606,7 +607,7 @@ class ManualGuideOverlay(QWidget):
             painter.setPen(QPen(QColor(160, 160, 160, 220), 3))
         else:
             hc = QColor(255, 255, 0, 210 if drag_active else 170)
-            painter.setPen(QPen(QColor(255, 255, 0, 255), 4 if drag_active else 3))
+            painter.setPen(QPen(QColor(255, 255, 0, 255), 3 if drag_active else 2))
         painter.setBrush(hc)
         painter.drawRect(handle)
 
@@ -617,7 +618,7 @@ class ManualGuideOverlay(QWidget):
             painter.setPen(QPen(QColor(160, 160, 160, 220), 3))
         else:
             rc = QColor(255, 120, 0, 255) if resize_active else QColor(0, 220, 180, 255)
-            painter.setPen(QPen(rc, 4 if resize_active else 3))
+            painter.setPen(QPen(rc, 3 if resize_active else 2))
         painter.setBrush(QColor(rc.red(), rc.green(), rc.blue(), 210 if resize_active else 170))
         painter.drawRect(resize_handle)
 
@@ -692,6 +693,7 @@ class ControlWindow(QWidget):
 
         self._magnet_enabled: bool = False
         self._magnet_in_flight: bool = False
+        self._magnet_live_misses: int = 0
         self._magnet_timer = QTimer(self)
         self._magnet_timer.setInterval(MAGNET_LIVE_INTERVAL_MS)
         self._magnet_timer.timeout.connect(self._run_magnet_live_tick)
@@ -1146,6 +1148,7 @@ class ControlWindow(QWidget):
         if self._magnet_enabled:
             _append_debug_log("manual_guide.log", f"magnet stop reason={reason}")
         self._magnet_in_flight = False
+        self._magnet_live_misses = 0
         self._set_magnet_active(False)
 
     def _run_magnet_live_tick(self) -> None:
@@ -1154,7 +1157,10 @@ class ControlWindow(QWidget):
         if self.guide_overlay is None or not self.guide_overlay.isVisible():
             self._stop_magnet("guide-missing")
             return
-        self._safe_run_magnet_align(allow_scale=False, live=True)
+        if self._safe_run_magnet_align(allow_scale=False, live=True):
+            self._magnet_live_misses = 0
+        else:
+            self._magnet_live_misses = min(self._magnet_live_misses + 1, 10)
 
     def _safe_run_magnet_align(self, *, allow_scale: bool, live: bool) -> bool:
         self._magnet_in_flight = True
@@ -1247,7 +1253,8 @@ class ControlWindow(QWidget):
             },
         ]
         anchors = [a for a in anchors if a["path"] is not None]
-        if live:
+        reacquiring = live and self._magnet_live_misses >= 2
+        if live and not reacquiring:
             top_anchors = [a for a in anchors if a["name"] in {"title", "tab"}]
             if top_anchors:
                 anchors = top_anchors
@@ -1269,7 +1276,7 @@ class ControlWindow(QWidget):
                 (anchor["offset"][1] + anchor["ref_size"][1]) * current_scale
                 for anchor in anchors
             )
-            pad = MAGNET_LIVE_SEARCH_PAD
+            pad = MAGNET_LIVE_REACQUIRE_PAD if reacquiring else MAGNET_LIVE_SEARCH_PAD
         else:
             gw = GUIDE_REF_WINDOW_SIZE[0] * current_scale
             gh = GUIDE_REF_WINDOW_SIZE[1] * current_scale

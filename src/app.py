@@ -261,8 +261,8 @@ class LiveDemo:
 
         self.dfogang = DfogangClient(demo=demo_scores, neople_api_key=neople_api_key)
         self.neople = NeopleClient(api_key=neople_api_key)
-        self._resolve_executor = ThreadPoolExecutor(max_workers=1)
-        self._score_executor = ThreadPoolExecutor(max_workers=1)
+        self._resolve_executor = ThreadPoolExecutor(max_workers=4)
+        self._score_executor = ThreadPoolExecutor(max_workers=2)
         self._score_cache: dict[str, tuple[ScoreInfo | None, float]] = {}
         # name -> started_at. Entries expire after PENDING_TTL_S so a stuck
         # worker thread can't permanently block a retry.
@@ -274,9 +274,8 @@ class LiveDemo:
         # Key is a tuple of OCR signals, deterministic for the same UI state.
         self._pa_resolve_cache: dict[tuple, tuple[str | None, float]] = {}
         self._pa_resolve_pending: dict[tuple, float] = {}
-        # party_apply resolve cache intentionally includes OCR name. Reusing a
-        # fame+class-only hit can leave a previous applicant's score on screen
-        # after rows are accepted or replaced.
+        # Stable cache ignores noisy name OCR but includes row index, fame, and
+        # class so the same visible row does not re-query on every OCR jitter.
         self._pa_stable_resolve_cache: dict[tuple, tuple[str | None, float]] = {}
 
         # API result cache, keyed on (fame, class_norm, name_norm):
@@ -869,9 +868,9 @@ class LiveDemo:
     def _pa_stable_row_key(self, row: PartyApplyRow) -> tuple | None:
         """Stable key for the same party-apply row across noisy name OCR.
 
-        Fame + class are more stable than character-name OCR in this UI. This
-        prevents a row that already resolved successfully from being queried
-        again when the visible name jitters on later frames.
+        Fame + class are more stable than character-name OCR in this UI. Include
+        row index so an accepted/replaced row has to occupy the same slot with
+        the same fame/class to reuse a cached canonical.
         """
         if not self.neople.has_key:
             return None
@@ -881,9 +880,8 @@ class LiveDemo:
             return None
         if row.class_score < PARTY_APPLY_MIN_CLASS_CONF:
             return None
-        ocr_name = (row.name or row.name_raw or "").strip()
-        return (row.fame, row.fame_range_min, row.fame_range_max,
-                _norm_for_cache(row.class_raw), _norm_for_cache(ocr_name))
+        return (row.index, row.fame, row.fame_range_min, row.fame_range_max,
+                _norm_for_cache(row.class_raw))
 
     def _build_pa_annotations(self, det: PartyApplyDetection,
                               rows: list[PartyApplyRow],
